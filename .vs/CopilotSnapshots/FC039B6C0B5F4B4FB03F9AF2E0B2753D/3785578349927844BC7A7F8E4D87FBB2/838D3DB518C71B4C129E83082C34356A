@@ -1,0 +1,83 @@
+﻿using lib_track_kiosk.configs;
+using MySql.Data.MySqlClient;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace lib_track_kiosk.test_forms
+{
+    public partial class FillUserInformation : Form
+    {
+        private byte[] fingerprintData;
+
+        public FillUserInformation(byte[] fpData)
+        {
+            InitializeComponent();
+            fingerprintData = fpData;
+        }
+
+        private void save_btn_Click(object sender, EventArgs e)
+        {
+            string firstName = firstName_txt.Text.Trim();
+            string lastName = lastName_txt.Text.Trim();
+            string fingerType = fingerType_cmbx.Text.Trim();
+
+            if (string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName) || string.IsNullOrEmpty(fingerType))
+            {
+                MessageBox.Show("Please fill all fields.");
+                return;
+            }
+
+            if (fingerprintData == null || fingerprintData.Length == 0)
+            {
+                MessageBox.Show("No fingerprint data available.");
+                return;
+            }
+
+            try
+            {
+                Database db = new Database();
+                string connStr = $"Server={db.Host};Database={db.Name};User Id={db.User};Password={db.Password};Port={db.Port};";
+
+                using (MySqlConnection conn = new MySqlConnection(connStr))
+                {
+                    conn.Open();
+
+                    // Insert into users table
+                    int userId;
+                    string insertUser = "INSERT INTO users (first_name, last_name, created_at) VALUES (@firstName, @lastName, NOW());";
+                    using (MySqlCommand cmd = new MySqlCommand(insertUser, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@firstName", firstName);
+                        cmd.Parameters.AddWithValue("@lastName", lastName);
+                        cmd.ExecuteNonQuery();
+                        userId = (int)cmd.LastInsertedId;
+                    }
+
+                    // Insert into fingerprints table
+                    string insertFingerprint = "INSERT INTO fingerprints (user_id, finger_type, data, created_at) VALUES (@userId, @fingerType, @data, NOW());";
+                    using (MySqlCommand cmd = new MySqlCommand(insertFingerprint, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        cmd.Parameters.AddWithValue("@fingerType", fingerType);
+                        cmd.Parameters.Add("@data", MySqlDbType.LongBlob).Value = fingerprintData;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    MessageBox.Show("Fingerprint and user info saved successfully!");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Database error: " + ex.Message);
+            }
+        }
+
+    }
+}

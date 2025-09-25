@@ -1,0 +1,321 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "E:\\Library-Tracker\\lib-track-kiosk\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_looksearch.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_looksearch.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_welcome.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_welcome.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_welcome.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_welcome.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_registerfingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_registerfingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_registerfingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_registerfingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\mainform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\mainform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_borrow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_borrow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_borrow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_borrow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_return.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_return.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\scanqrtest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\test_forms\\scanqrtest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\fingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\test_forms\\fingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\scanqrtest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\test_forms\\scanqrtest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\configs\\database.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\configs\\database.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\form1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\form1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\fingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\test_forms\\fingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\filluserinformation.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\test_forms\\filluserinformation.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\storedfingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\test_forms\\storedfingerprint.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\filluserinformation.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\test_forms\\filluserinformation.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{56df62a4-05a3-4e5b-aa1a-99371ccfb997}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "UC_LookSearch.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_LookSearch.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_LookSearch.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_LookSearch.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_LookSearch.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-23T11:54:42.949Z",
+              "EditorCaption": " [Design]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "UC_Return.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Return.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_Return.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Return.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_Return.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-23T11:53:14.216Z",
+              "EditorCaption": " [Design]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "UC_Welcome.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Welcome.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_Welcome.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Welcome.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_Welcome.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-23T06:36:19.089Z",
+              "EditorCaption": " [Design]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "MainForm.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\MainForm.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\MainForm.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\MainForm.cs",
+              "RelativeToolTip": "lib-track-kiosk\\MainForm.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACEAAAAmAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-23T05:51:22.349Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "UC_Borrow.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Borrow.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_Borrow.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Borrow.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_Borrow.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-23T11:46:27.893Z",
+              "EditorCaption": " [Design]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "UC_Borrow.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Borrow.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_Borrow.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Borrow.cs",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_Borrow.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAowBYAAAAMAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-23T12:10:07.607Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "UC_Welcome.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Welcome.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_Welcome.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Welcome.cs",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_Welcome.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAADgAAABDAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-23T11:48:25.084Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "UC_RegisterFingerprint.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_RegisterFingerprint.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_RegisterFingerprint.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_RegisterFingerprint.cs",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_RegisterFingerprint.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABsAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-23T12:17:20.248Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "UC_RegisterFingerprint.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_RegisterFingerprint.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_RegisterFingerprint.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_RegisterFingerprint.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_RegisterFingerprint.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-23T12:15:57.505Z",
+              "EditorCaption": " [Design]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "ScanQRTest.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\ScanQRTest.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\test_forms\\ScanQRTest.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\ScanQRTest.cs",
+              "RelativeToolTip": "lib-track-kiosk\\test_forms\\ScanQRTest.cs",
+              "ViewState": "AgIAABsAAAAAAAAAAAAcwJUAAAAPAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-13T08:09:22.431Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "ScanQRTest.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\ScanQRTest.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\test_forms\\ScanQRTest.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\ScanQRTest.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\test_forms\\ScanQRTest.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-13T08:09:19.392Z",
+              "EditorCaption": " [Design]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "StoredFingerprint.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\StoredFingerprint.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\test_forms\\StoredFingerprint.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\StoredFingerprint.cs",
+              "RelativeToolTip": "lib-track-kiosk\\test_forms\\StoredFingerprint.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-06T10:07:17.064Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "FillUserInformation.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\FillUserInformation.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\test_forms\\FillUserInformation.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\FillUserInformation.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\test_forms\\FillUserInformation.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-05T16:28:00.53Z",
+              "EditorCaption": " [Design]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "FillUserInformation.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\FillUserInformation.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\test_forms\\FillUserInformation.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\FillUserInformation.cs",
+              "RelativeToolTip": "lib-track-kiosk\\test_forms\\FillUserInformation.cs",
+              "ViewState": "AgIAABQAAAAAAAAAAAAkwDUAAAA/AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-05T16:28:01.842Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "fingerprint.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\fingerprint.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\test_forms\\fingerprint.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\fingerprint.cs",
+              "RelativeToolTip": "lib-track-kiosk\\test_forms\\fingerprint.cs",
+              "ViewState": "AgIAAEQAAAAAAAAAAAAwwFcAAAAqAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-05T05:56:25.373Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "fingerprint.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\fingerprint.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\test_forms\\fingerprint.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\test_forms\\fingerprint.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\test_forms\\fingerprint.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-05T05:34:38.178Z",
+              "EditorCaption": " [Design]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "Database.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\configs\\Database.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\configs\\Database.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\configs\\Database.cs",
+              "RelativeToolTip": "lib-track-kiosk\\configs\\Database.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAwAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-05T16:11:21.594Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "Form1.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\Form1.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\Form1.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\Form1.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\Form1.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-13T08:09:09.735Z",
+              "EditorCaption": " [Design]"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
