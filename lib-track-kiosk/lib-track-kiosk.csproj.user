@@ -4,8 +4,35 @@
     <Compile Update="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="loading_forms\Loading.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Update="MainForm.cs">
       <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="sub_forms\ScanBookQR.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="sub_forms\ScanFingerprint.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="sub_forms\SelectFingerType.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="sub_forms\ViewScannedBooks.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="sub_user_controls\UC_GenerateReceipt.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="sub_user_controls\UC_LookBooks.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="sub_user_controls\UC_LookResearchPapers.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="sub_user_controls\UC_ScannedResearchInformation.cs">
+      <SubType>UserControl</SubType>
     </Compile>
     <Compile Update="user_control_forms\UC_Borrow.cs">
       <SubType>UserControl</SubType>
@@ -17,6 +44,12 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Update="user_control_forms\UC_Return.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="sub_user_controls\UC_ScannedBookInformation.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="user_control_forms\UC_UserLogin.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Update="user_control_forms\UC_Welcome.cs">

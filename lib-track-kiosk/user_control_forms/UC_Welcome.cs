@@ -48,13 +48,23 @@ namespace lib_track_kiosk.panel_forms
             }
         }
 
+        //private void registerFingerprint_btn_Click(object sender, EventArgs e)
+        //{
+        //    MainForm mainForm = (MainForm)this.ParentForm;
+        //    if (mainForm != null)
+        //    {
+        //        UC_RegisterFingerprint registerFingerprintScreen = new UC_RegisterFingerprint();
+        //        mainForm.addUserControl(registerFingerprintScreen);
+        //    }
+        //}
+
         private void registerFingerprint_btn_Click(object sender, EventArgs e)
         {
             MainForm mainForm = (MainForm)this.ParentForm;
             if (mainForm != null)
             {
-                UC_RegisterFingerprint registerFingerprintScreen = new UC_RegisterFingerprint();
-                mainForm.addUserControl(registerFingerprintScreen);
+                UC_UserLogin userLoginScreen = new UC_UserLogin();
+                mainForm.addUserControl(userLoginScreen);
             }
         }
     }

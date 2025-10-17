@@ -200,7 +200,7 @@ namespace lib_track_kiosk.test_forms
                 string json = JsonConvert.SerializeObject(body);
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                const string apiUrl = "http://localhost:5000/scan";
+                const string apiUrl = "http://localhost:5000/api/books/scan";
                 HttpResponseMessage resp = await client.PostAsync(apiUrl, content);
                 string respStr = await resp.Content.ReadAsStringAsync();
 
