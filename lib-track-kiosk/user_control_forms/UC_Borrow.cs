@@ -1,10 +1,14 @@
-﻿using lib_track_kiosk.panel_forms;
+﻿using lib_track_kiosk.helpers;
+using lib_track_kiosk.panel_forms;
 using lib_track_kiosk.sub_forms;
 using lib_track_kiosk.sub_user_controls;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -12,9 +16,13 @@ namespace lib_track_kiosk.user_control_forms
 {
     public partial class UC_Borrow : UserControl
     {
-        // 🧠 Storage for scanned data (not displayed immediately)
+        // STORAGE FOR SCANNED ITEMS
         private List<(int bookId, string bookNumber)> scannedBooks = new List<(int, string)>();
         private List<int> scannedResearchPapers = new List<int>();
+
+        private int? currentUserId;
+
+        private UC_GenerateReceipt receiptUCInstance;
 
         public UC_Borrow()
         {
@@ -22,14 +30,25 @@ namespace lib_track_kiosk.user_control_forms
             this.Load += UC_Borrow_Load;
         }
 
+        // FORM LOAD - SCAN FINGERPRINT 
         private async void UC_Borrow_Load(object sender, EventArgs e)
         {
-            LoadReceiptGenerationPanel();
-
-            // Step 1: Scan Fingerprint only
             using (var scanFingerprint = new ScanFingerprint())
             {
-                if (scanFingerprint.ShowDialog() == DialogResult.OK)
+                var result = scanFingerprint.ShowDialog();
+
+                if (result == DialogResult.Cancel)
+                {
+                    MainForm mainForm = (MainForm)this.ParentForm;
+                    if (mainForm != null)
+                    {
+                        UC_Welcome welcomeScreen = new UC_Welcome();
+                        mainForm.addUserControl(welcomeScreen);
+                    }
+                    return;
+                }
+
+                if (result == DialogResult.OK)
                 {
                     int? userId = scanFingerprint.ScannedUserId;
                     if (!userId.HasValue)
@@ -38,67 +57,53 @@ namespace lib_track_kiosk.user_control_forms
                         return;
                     }
 
-                    userId_lbl.Text = userId.Value.ToString(); // for display only
-
-                    // ✅ Fetch and display user info from backend
                     await FetchAndDisplayUserInformation(userId.Value);
                 }
             }
         }
 
-        /// <summary>
-        /// Fetches and displays user info from backend using userId (from scanned fingerprint)
-        /// </summary>
+        // FETCH USER INFORMATION FROM API
         private async Task FetchAndDisplayUserInformation(int userId)
         {
             try
             {
-                using (HttpClient client = new HttpClient())
+                var (fullName, email, contactNumber, department, position, yearLevel, profilePhoto)
+                    = await UserFetcher.GetUserInfoAsync(userId);
+
+                fullName_lbl.Text = fullName;
+                email_lbl.Text = email;
+                contactNumber_lbl.Text = contactNumber;
+                department_lbl.Text = department;
+                position_lbl.Text = position;
+                yearLevel_lbl.Text = yearLevel;
+
+                pendingPenalties_lbl.Text = "0";
+                fines_lbl.Text = "₱0.00";
+                booksCurrentlyBorrowed_lbl.Text = "0";
+
+                // DISPLAY PROFILE PHOTO
+                if (profilePhoto != null)
                 {
-                    string apiUrl = $"http://localhost:5000/api/users/registrations/{userId}";
-                    Console.WriteLine($"🌐 Fetching user info from: {apiUrl}");
-
-                    HttpResponseMessage response = await client.GetAsync(apiUrl);
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        string jsonResponse = await response.Content.ReadAsStringAsync();
-                        JObject data = JObject.Parse(jsonResponse);
-                        var user = data["user"];
-
-                        if (user != null)
-                        {
-                            // Fill labels
-                            fullName_lbl.Text = $"{user["first_name"]} {user["last_name"]}";
-                            email_lbl.Text = user["email"]?.ToString() ?? "N/A";
-                            contactNumber_lbl.Text = user["contact_number"]?.ToString() ?? "N/A";
-                            department_lbl.Text = user["department_name"]?.ToString() ?? "N/A";
-                            position_lbl.Text = "Student"; // static for now
-                            yearLevel_lbl.Text = user["year_level"]?.ToString() ?? "N/A";
-                            pendingPenalties_lbl.Text = user["penalties"]?.ToString() ?? "0";
-                            fines_lbl.Text = user["fines"]?.ToString() ?? "₱0.00";
-                            booksCurrentlyBorrowed_lbl.Text = user["books_borrowed"]?.ToString() ?? "0";
-                            maxBooksThatCanBorrow_lbl.Text = user["max_books"]?.ToString() ?? "5";
-
-                            // Load profile image
-                            string imageUrl = user["profile_image"]?.ToString();
-                            if (!string.IsNullOrEmpty(imageUrl))
-                                profile_pictureBox.ImageLocation = imageUrl;
-                            else
-                                profile_pictureBox.ImageLocation = @"E:\Library-Tracker\lib-track-admin\public\avatar-default.png";
-
-                            profile_pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
-                        }
-                        else
-                        {
-                            MessageBox.Show("⚠️ User data not found in response.");
-                        }
-                    }
-                    else
-                    {
-                        MessageBox.Show($"❌ Failed to fetch user info. Status: {response.StatusCode}");
-                    }
+                    profile_pictureBox.Image = profilePhoto;
                 }
+                else
+                {
+                    profile_pictureBox.ImageLocation = @"E:\Library-Tracker\lib-track-admin\public\avatar-default.png";
+                }
+                profile_pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+
+                // LOAD BORROWING LIMITS
+                string userType = position ?? "Student";
+                var (_, _, studentMaxBooks, facultyMaxBooks) =
+                    await lib_track_kiosk.configs.SystemSettingsFetcher.GetBorrowingLimitsAsync();
+
+                int maxBooks = userType.Equals("Student", StringComparison.OrdinalIgnoreCase)
+                    ? studentMaxBooks
+                    : facultyMaxBooks;
+
+                maxBooksThatCanBorrow_lbl.Text = maxBooks.ToString();
+
+                LoadReceiptGenerationPanel(userType, userId);
             }
             catch (Exception ex)
             {
@@ -106,7 +111,7 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // 🚪 Exit back to welcome
+        // EXIT BORROW PANEL
         private void exitBorrow_btn_Click(object sender, EventArgs e)
         {
             MainForm mainForm = (MainForm)this.ParentForm;
@@ -117,17 +122,25 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // 🧾 Load receipt generation section
-        private void LoadReceiptGenerationPanel()
+        // LOAD RECEIPT GENERATION PANEL
+        private void LoadReceiptGenerationPanel(string userType, int userId)
         {
-            generateReceipt_panel.Controls.Clear();
-            var generateReceiptUC = new UC_GenerateReceipt();
-            generateReceiptUC.Dock = DockStyle.Fill;
-            generateReceipt_panel.Controls.Add(generateReceiptUC);
-            Console.WriteLine("✅ Receipt generation panel loaded.");
+            if (receiptUCInstance == null)
+            {
+                receiptUCInstance = new UC_GenerateReceipt(
+                    userType,
+                    userId,
+                    scannedBooks,
+                    scannedResearchPapers
+                );
+                receiptUCInstance.Dock = DockStyle.Fill;
+                generateReceipt_panel.Controls.Clear();
+                generateReceipt_panel.Controls.Add(receiptUCInstance);
+            }
         }
 
-        // ➕ Add more scanned items (manually triggered now)
+
+        // ADD BOOKS OR RESEARCH PAPERS
         private void add_btn_Click(object sender, EventArgs e)
         {
             using (var scanForm = new ScanBookQR())
@@ -136,23 +149,31 @@ namespace lib_track_kiosk.user_control_forms
                 {
                     string scannedType = scanForm.ScannedType;
 
-                    // 📘 Book
+                    scannedType_panel.Controls.Clear();
+
                     if (scannedType == "Book" &&
                         scanForm.ScannedBookId.HasValue &&
                         !string.IsNullOrEmpty(scanForm.ScannedBookNumber))
                     {
                         int bookId = scanForm.ScannedBookId.Value;
                         string bookNumber = scanForm.ScannedBookNumber;
-                        Console.WriteLine($"➕ Added Book: ID={bookId}, Number={bookNumber}");
                         scannedBooks.Add((bookId, bookNumber));
+
+                        var bookInfoUC = new UC_ScannedBookInformation(bookId, bookNumber);
+                        bookInfoUC.Dock = DockStyle.Fill;
+                        scannedType_panel.Controls.Add(bookInfoUC);
                     }
                     // 📄 Research Paper
                     else if (scannedType == "Research Paper" &&
                              scanForm.ScannedResearchPaperId.HasValue)
                     {
                         int researchPaperId = scanForm.ScannedResearchPaperId.Value;
-                        Console.WriteLine($"➕ Added Research Paper: ID={researchPaperId}");
+
                         scannedResearchPapers.Add(researchPaperId);
+
+                        var researchInfoUC = new UC_ScannedResearchInformation(researchPaperId);
+                        researchInfoUC.Dock = DockStyle.Fill;
+                        scannedType_panel.Controls.Add(researchInfoUC);
                     }
                     else
                     {
@@ -160,9 +181,14 @@ namespace lib_track_kiosk.user_control_forms
                     }
                 }
             }
+
+            if (receiptUCInstance != null)
+            {
+                receiptUCInstance.UpdateScannedItemsAsync(scannedBooks, scannedResearchPapers);
+            }
         }
 
-        // 👁️ View all stored scans
+        // VIEW SCANNED BOOKS OR RESEARCH PAPERS
         private void viewScannedBooks_btn_Click(object sender, EventArgs e)
         {
             using (var viewForm = new ViewScannedBooks(scannedBooks, scannedResearchPapers, this))
@@ -171,28 +197,113 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // 📖 Public method for displaying scanned info dynamically
-        public void ShowScannedItem(string type, int id, string bookNumber = null)
+        // DYNAMIC DISPLAY OF SCANNED ITEM
+        public void ShowScannedItem(string type, int itemId, string bookNumber = null)
         {
             scannedType_panel.Controls.Clear();
 
             if (type == "Book")
             {
-                var bookInfoUC = new UC_ScannedBookInformation(id, bookNumber);
+                var bookInfoUC = new UC_ScannedBookInformation(itemId, bookNumber);
                 bookInfoUC.Dock = DockStyle.Fill;
                 scannedType_panel.Controls.Add(bookInfoUC);
-                Console.WriteLine($"📘 Displayed Book Info: ID={id}, BookNumber={bookNumber}");
+
             }
             else if (type == "Research Paper")
             {
-                var researchInfoUC = new UC_ScannedResearchPaperInformation(id);
+                var researchInfoUC = new UC_ScannedResearchInformation(researchPaperId: itemId);
                 researchInfoUC.Dock = DockStyle.Fill;
                 scannedType_panel.Controls.Add(researchInfoUC);
-                Console.WriteLine($"📄 Displayed Research Paper Info: ID={id}");
+
             }
+        }
+
+        // BORROW BUTTON CLICK
+        private async void borrow_btn_Click(object sender, EventArgs e)
+        {
+            if (scannedBooks.Count == 0 && scannedResearchPapers.Count == 0)
+            {
+                MessageBox.Show("⚠️ No books or research papers scanned. Please add items first.");
+                return;
+            }
+
+            if (receiptUCInstance == null || !receiptUCInstance.UserId.HasValue)
+            {
+                MessageBox.Show("⚠️ No valid user detected.");
+                return;
+            }
+
+            // BUILD BORROW REQUEST
+            var borrowRequest = new BorrowRequest
+            {
+                ReferenceNumber = receiptUCInstance.ReferenceNumber,
+                UserId = receiptUCInstance.UserId.Value,
+                DueDate = receiptUCInstance.DueDate
+            };
+
+            // ADD SCANNED BOOKS
+            foreach (var (bookId, _) in scannedBooks)
+                borrowRequest.BookIds.Add(bookId);
+
+            // ADD SCANNED RESEARCH PAPERS  
+            borrowRequest.ResearchPaperIds.AddRange(scannedResearchPapers);
+
+            // ATTACH RECEIPT IMAGE
+            string receiptPath = GenerateReceiptImageFromPanel();
+            if (!string.IsNullOrEmpty(receiptPath))
+                borrowRequest.ReceiptFilePath = receiptPath;
+
+            try
+            {
+                var response = await BorrowFetcher.BorrowAsync(borrowRequest);
+
+                if (response.Success)
+                {
+                    MessageBox.Show($"✅ Borrow successful!\nItems borrowed: {borrowRequest.BookIds.Count + borrowRequest.ResearchPaperIds.Count}\nReference: {borrowRequest.ReferenceNumber}");
+
+                    // CLEAR SCANNED ITEMS
+                    scannedBooks.Clear();
+                    scannedResearchPapers.Clear();
+                    scannedType_panel.Controls.Clear();
+
+                    // UPDATE RECEIPT PANEL
+                    receiptUCInstance?.UpdateScannedItemsAsync(scannedBooks, scannedResearchPapers);
+
+                    // CONFIRMATION - RETURN TO WELCOME SCREEN
+                    MainForm mainForm = this.ParentForm as MainForm;
+                    if (mainForm != null)
+                    {
+                        UC_Welcome welcomeScreen = new UC_Welcome();
+                        mainForm.addUserControl(welcomeScreen);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show($"❌ Borrow failed: {response.Message}\nError: {response.Error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"🔥 Unexpected error: {ex.Message}");
+            }
+        }
+
+        // HELPER TO GENERATE RECEIPT IMAGE
+        private string GenerateReceiptImageFromPanel()
+        {
+            if (generateReceipt_panel.Controls.Count == 0)
+                return null;
+
+            Bitmap bitmap = new Bitmap(generateReceipt_panel.Width, generateReceipt_panel.Height);
+            generateReceipt_panel.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+
+            string tempPath = Path.Combine(Path.GetTempPath(), $"Receipt_{DateTime.Now:yyyyMMddHHmmss}.jpg");
+            bitmap.Save(tempPath, System.Drawing.Imaging.ImageFormat.Jpeg);
+            return tempPath;
         }
     }
 
+    // USER CONTROL FOR DISPLAYING SCANNED RESEARCH PAPER INFO
     internal class UC_ScannedResearchPaperInformation : Control
     {
         private readonly int researchPaperId;

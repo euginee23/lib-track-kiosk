@@ -29,17 +29,17 @@
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(UC_GenerateReceipt));
+            DataGridViewCellStyle dataGridViewCellStyle5 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle6 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle7 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle8 = new DataGridViewCellStyle();
             pictureBox1 = new PictureBox();
             label1 = new Label();
             label2 = new Label();
-            label3 = new Label();
+            transactionDate_lbl = new Label();
             label4 = new Label();
             label5 = new Label();
-            dataGridView1 = new DataGridView();
-            Column1 = new DataGridViewTextBoxColumn();
-            Column2 = new DataGridViewTextBoxColumn();
-            Column3 = new DataGridViewTextBoxColumn();
-            Column4 = new DataGridViewTextBoxColumn();
+            borrowed_dgv = new DataGridView();
             label6 = new Label();
             label7 = new Label();
             label8 = new Label();
@@ -52,13 +52,21 @@
             label16 = new Label();
             label17 = new Label();
             label18 = new Label();
-            label19 = new Label();
+            dueDate_lbl = new Label();
             label14 = new Label();
             label20 = new Label();
             label21 = new Label();
-            label22 = new Label();
+            referenceNumber_lbl = new Label();
+            fullName_lbl = new Label();
+            contactNumber_lbl = new Label();
+            yearAndDepartment_lbl = new Label();
+            email_lbl = new Label();
+            Column1 = new DataGridViewTextBoxColumn();
+            Column2 = new DataGridViewTextBoxColumn();
+            Column3 = new DataGridViewTextBoxColumn();
+            Column4 = new DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)dataGridView1).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)borrowed_dgv).BeginInit();
             SuspendLayout();
             // 
             // pictureBox1
@@ -90,14 +98,14 @@
             label2.TabIndex = 2;
             label2.Text = "Transaction Date:";
             // 
-            // label3
+            // transactionDate_lbl
             // 
-            label3.AutoSize = true;
-            label3.Location = new Point(435, 90);
-            label3.Name = "label3";
-            label3.Size = new Size(12, 15);
-            label3.TabIndex = 3;
-            label3.Text = "-";
+            transactionDate_lbl.AutoSize = true;
+            transactionDate_lbl.Location = new Point(435, 90);
+            transactionDate_lbl.Name = "transactionDate_lbl";
+            transactionDate_lbl.Size = new Size(12, 15);
+            transactionDate_lbl.TabIndex = 3;
+            transactionDate_lbl.Text = "-";
             // 
             // label4
             // 
@@ -118,44 +126,16 @@
             label5.TabIndex = 5;
             label5.Text = "LOAN RECEIPT";
             // 
-            // dataGridView1
+            // borrowed_dgv
             // 
-            dataGridView1.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dataGridView1.Columns.AddRange(new DataGridViewColumn[] { Column1, Column2, Column3, Column4 });
-            dataGridView1.Location = new Point(9, 152);
-            dataGridView1.Name = "dataGridView1";
-            dataGridView1.ReadOnly = true;
-            dataGridView1.RowHeadersVisible = false;
-            dataGridView1.Size = new Size(530, 299);
-            dataGridView1.TabIndex = 6;
-            // 
-            // Column1
-            // 
-            Column1.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            Column1.HeaderText = "Title";
-            Column1.Name = "Column1";
-            Column1.ReadOnly = true;
-            // 
-            // Column2
-            // 
-            Column2.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            Column2.HeaderText = "Author";
-            Column2.Name = "Column2";
-            Column2.ReadOnly = true;
-            // 
-            // Column3
-            // 
-            Column3.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            Column3.HeaderText = "Shelf Location";
-            Column3.Name = "Column3";
-            Column3.ReadOnly = true;
-            // 
-            // Column4
-            // 
-            Column4.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            Column4.HeaderText = "Type";
-            Column4.Name = "Column4";
-            Column4.ReadOnly = true;
+            borrowed_dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            borrowed_dgv.Columns.AddRange(new DataGridViewColumn[] { Column1, Column2, Column3, Column4 });
+            borrowed_dgv.Location = new Point(9, 152);
+            borrowed_dgv.Name = "borrowed_dgv";
+            borrowed_dgv.ReadOnly = true;
+            borrowed_dgv.RowHeadersVisible = false;
+            borrowed_dgv.Size = new Size(530, 299);
+            borrowed_dgv.TabIndex = 6;
             // 
             // label6
             // 
@@ -269,14 +249,14 @@
             label18.TabIndex = 19;
             label18.Text = "- Damaged or lost items must be reported immediately.";
             // 
-            // label19
+            // dueDate_lbl
             // 
-            label19.AutoSize = true;
-            label19.Location = new Point(435, 457);
-            label19.Name = "label19";
-            label19.Size = new Size(12, 15);
-            label19.TabIndex = 20;
-            label19.Text = "-";
+            dueDate_lbl.AutoSize = true;
+            dueDate_lbl.Location = new Point(435, 457);
+            dueDate_lbl.Name = "dueDate_lbl";
+            dueDate_lbl.Size = new Size(12, 15);
+            dueDate_lbl.TabIndex = 20;
+            dueDate_lbl.Text = "-";
             // 
             // label14
             // 
@@ -305,24 +285,101 @@
             label21.TabIndex = 23;
             label21.Text = "Reference Number:";
             // 
-            // label22
+            // referenceNumber_lbl
             // 
-            label22.AutoSize = true;
-            label22.Location = new Point(124, 130);
-            label22.Name = "label22";
-            label22.Size = new Size(12, 15);
-            label22.TabIndex = 24;
-            label22.Text = "-";
+            referenceNumber_lbl.AutoSize = true;
+            referenceNumber_lbl.Location = new Point(124, 130);
+            referenceNumber_lbl.Name = "referenceNumber_lbl";
+            referenceNumber_lbl.Size = new Size(12, 15);
+            referenceNumber_lbl.TabIndex = 24;
+            referenceNumber_lbl.Text = "-";
+            // 
+            // fullName_lbl
+            // 
+            fullName_lbl.AutoSize = true;
+            fullName_lbl.Location = new Point(106, 539);
+            fullName_lbl.Name = "fullName_lbl";
+            fullName_lbl.Size = new Size(12, 15);
+            fullName_lbl.TabIndex = 25;
+            fullName_lbl.Text = "-";
+            // 
+            // contactNumber_lbl
+            // 
+            contactNumber_lbl.AutoSize = true;
+            contactNumber_lbl.Location = new Point(106, 568);
+            contactNumber_lbl.Name = "contactNumber_lbl";
+            contactNumber_lbl.Size = new Size(12, 15);
+            contactNumber_lbl.TabIndex = 26;
+            contactNumber_lbl.Text = "-";
+            // 
+            // yearAndDepartment_lbl
+            // 
+            yearAndDepartment_lbl.AutoSize = true;
+            yearAndDepartment_lbl.Location = new Point(106, 597);
+            yearAndDepartment_lbl.Name = "yearAndDepartment_lbl";
+            yearAndDepartment_lbl.Size = new Size(12, 15);
+            yearAndDepartment_lbl.TabIndex = 27;
+            yearAndDepartment_lbl.Text = "-";
+            // 
+            // email_lbl
+            // 
+            email_lbl.AutoSize = true;
+            email_lbl.Location = new Point(106, 625);
+            email_lbl.Name = "email_lbl";
+            email_lbl.Size = new Size(12, 15);
+            email_lbl.TabIndex = 28;
+            email_lbl.Text = "-";
+            // 
+            // Column1
+            // 
+            Column1.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            dataGridViewCellStyle5.WrapMode = DataGridViewTriState.True;
+            Column1.DefaultCellStyle = dataGridViewCellStyle5;
+            Column1.HeaderText = "Title";
+            Column1.Name = "Column1";
+            Column1.ReadOnly = true;
+            // 
+            // Column2
+            // 
+            Column2.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            dataGridViewCellStyle6.WrapMode = DataGridViewTriState.True;
+            Column2.DefaultCellStyle = dataGridViewCellStyle6;
+            Column2.HeaderText = "Author";
+            Column2.Name = "Column2";
+            Column2.ReadOnly = true;
+            // 
+            // Column3
+            // 
+            Column3.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            dataGridViewCellStyle7.WrapMode = DataGridViewTriState.True;
+            Column3.DefaultCellStyle = dataGridViewCellStyle7;
+            Column3.HeaderText = "Shelf Location";
+            Column3.Name = "Column3";
+            Column3.ReadOnly = true;
+            // 
+            // Column4
+            // 
+            Column4.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            dataGridViewCellStyle8.WrapMode = DataGridViewTriState.True;
+            Column4.DefaultCellStyle = dataGridViewCellStyle8;
+            Column4.HeaderText = "Type";
+            Column4.Name = "Column4";
+            Column4.ReadOnly = true;
             // 
             // UC_GenerateReceipt
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            Controls.Add(label22);
+            AutoSize = true;
+            Controls.Add(email_lbl);
+            Controls.Add(yearAndDepartment_lbl);
+            Controls.Add(contactNumber_lbl);
+            Controls.Add(fullName_lbl);
+            Controls.Add(referenceNumber_lbl);
             Controls.Add(label21);
             Controls.Add(label20);
             Controls.Add(label14);
-            Controls.Add(label19);
+            Controls.Add(dueDate_lbl);
             Controls.Add(label18);
             Controls.Add(label17);
             Controls.Add(label16);
@@ -335,17 +392,18 @@
             Controls.Add(label8);
             Controls.Add(label7);
             Controls.Add(label6);
-            Controls.Add(dataGridView1);
+            Controls.Add(borrowed_dgv);
             Controls.Add(label5);
             Controls.Add(label4);
-            Controls.Add(label3);
+            Controls.Add(transactionDate_lbl);
             Controls.Add(label2);
             Controls.Add(label1);
             Controls.Add(pictureBox1);
             Name = "UC_GenerateReceipt";
             Size = new Size(550, 750);
+            Load += UC_GenerateReceipt_Load;
             ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
-            ((System.ComponentModel.ISupportInitialize)dataGridView1).EndInit();
+            ((System.ComponentModel.ISupportInitialize)borrowed_dgv).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -355,10 +413,10 @@
         private PictureBox pictureBox1;
         private Label label1;
         private Label label2;
-        private Label label3;
+        private Label transactionDate_lbl;
         private Label label4;
         private Label label5;
-        private DataGridView dataGridView1;
+        private DataGridView borrowed_dgv;
         private Label label6;
         private Label label7;
         private Label label8;
@@ -366,19 +424,23 @@
         private Label label10;
         private Label label11;
         private Label label12;
-        private DataGridViewTextBoxColumn Column1;
-        private DataGridViewTextBoxColumn Column2;
-        private DataGridViewTextBoxColumn Column3;
-        private DataGridViewTextBoxColumn Column4;
         private Label label13;
         private Label label15;
         private Label label16;
         private Label label17;
         private Label label18;
-        private Label label19;
+        private Label dueDate_lbl;
         private Label label14;
         private Label label20;
         private Label label21;
-        private Label label22;
+        private Label referenceNumber_lbl;
+        private Label fullName_lbl;
+        private Label contactNumber_lbl;
+        private Label yearAndDepartment_lbl;
+        private Label email_lbl;
+        private DataGridViewTextBoxColumn Column1;
+        private DataGridViewTextBoxColumn Column2;
+        private DataGridViewTextBoxColumn Column3;
+        private DataGridViewTextBoxColumn Column4;
     }
 }

@@ -68,14 +68,12 @@
             panel5 = new Panel();
             label1 = new Label();
             panel2 = new Panel();
-            researchPaperID_lbl = new Label();
-            bookNumber_lbl = new Label();
-            bookId_lbl = new Label();
-            userId_lbl = new Label();
             label4 = new Label();
-            guna2Button1 = new Guna.UI2.WinForms.Guna2Button();
+            borrow_btn = new Guna.UI2.WinForms.Guna2Button();
             panel3 = new Panel();
             scannedType_panel = new Panel();
+            label6 = new Label();
+            label5 = new Label();
             panel6 = new Panel();
             viewScannedBooks_btn = new Guna.UI2.WinForms.Guna2Button();
             add_btn = new Guna.UI2.WinForms.Guna2Button();
@@ -91,6 +89,7 @@
             panel5.SuspendLayout();
             panel2.SuspendLayout();
             panel3.SuspendLayout();
+            scannedType_panel.SuspendLayout();
             panel6.SuspendLayout();
             panel4.SuspendLayout();
             panel7.SuspendLayout();
@@ -399,53 +398,13 @@
             // panel2
             // 
             panel2.BackColor = SystemColors.ActiveCaption;
-            panel2.Controls.Add(researchPaperID_lbl);
-            panel2.Controls.Add(bookNumber_lbl);
-            panel2.Controls.Add(bookId_lbl);
-            panel2.Controls.Add(userId_lbl);
             panel2.Controls.Add(label4);
-            panel2.Controls.Add(guna2Button1);
+            panel2.Controls.Add(borrow_btn);
             panel2.Controls.Add(exitBorrow_btn);
             panel2.Location = new Point(13, 14);
             panel2.Name = "panel2";
             panel2.Size = new Size(1840, 71);
             panel2.TabIndex = 19;
-            // 
-            // researchPaperID_lbl
-            // 
-            researchPaperID_lbl.AutoSize = true;
-            researchPaperID_lbl.Location = new Point(270, 6);
-            researchPaperID_lbl.Name = "researchPaperID_lbl";
-            researchPaperID_lbl.Size = new Size(12, 15);
-            researchPaperID_lbl.TabIndex = 23;
-            researchPaperID_lbl.Text = "-";
-            // 
-            // bookNumber_lbl
-            // 
-            bookNumber_lbl.AutoSize = true;
-            bookNumber_lbl.Location = new Point(213, 25);
-            bookNumber_lbl.Name = "bookNumber_lbl";
-            bookNumber_lbl.Size = new Size(12, 15);
-            bookNumber_lbl.TabIndex = 22;
-            bookNumber_lbl.Text = "-";
-            // 
-            // bookId_lbl
-            // 
-            bookId_lbl.AutoSize = true;
-            bookId_lbl.Location = new Point(213, 51);
-            bookId_lbl.Name = "bookId_lbl";
-            bookId_lbl.Size = new Size(12, 15);
-            bookId_lbl.TabIndex = 21;
-            bookId_lbl.Text = "-";
-            // 
-            // userId_lbl
-            // 
-            userId_lbl.AutoSize = true;
-            userId_lbl.Location = new Point(213, 6);
-            userId_lbl.Name = "userId_lbl";
-            userId_lbl.Size = new Size(12, 15);
-            userId_lbl.TabIndex = 20;
-            userId_lbl.Text = "-";
             // 
             // label4
             // 
@@ -457,24 +416,25 @@
             label4.TabIndex = 19;
             label4.Text = "Borrow Book";
             // 
-            // guna2Button1
+            // borrow_btn
             // 
-            guna2Button1.BorderRadius = 5;
-            guna2Button1.BorderThickness = 1;
-            guna2Button1.CustomizableEdges = customizableEdges7;
-            guna2Button1.DisabledState.BorderColor = Color.DarkGray;
-            guna2Button1.DisabledState.CustomBorderColor = Color.DarkGray;
-            guna2Button1.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
-            guna2Button1.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
-            guna2Button1.FillColor = Color.Green;
-            guna2Button1.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            guna2Button1.ForeColor = Color.White;
-            guna2Button1.Location = new Point(1670, 9);
-            guna2Button1.Name = "guna2Button1";
-            guna2Button1.ShadowDecoration.CustomizableEdges = customizableEdges8;
-            guna2Button1.Size = new Size(160, 51);
-            guna2Button1.TabIndex = 18;
-            guna2Button1.Text = "BORROW";
+            borrow_btn.BorderRadius = 5;
+            borrow_btn.BorderThickness = 1;
+            borrow_btn.CustomizableEdges = customizableEdges7;
+            borrow_btn.DisabledState.BorderColor = Color.DarkGray;
+            borrow_btn.DisabledState.CustomBorderColor = Color.DarkGray;
+            borrow_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
+            borrow_btn.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
+            borrow_btn.FillColor = Color.Green;
+            borrow_btn.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            borrow_btn.ForeColor = Color.White;
+            borrow_btn.Location = new Point(1670, 9);
+            borrow_btn.Name = "borrow_btn";
+            borrow_btn.ShadowDecoration.CustomizableEdges = customizableEdges8;
+            borrow_btn.Size = new Size(160, 51);
+            borrow_btn.TabIndex = 18;
+            borrow_btn.Text = "BORROW";
+            borrow_btn.Click += borrow_btn_Click;
             // 
             // panel3
             // 
@@ -489,10 +449,32 @@
             // scannedType_panel
             // 
             scannedType_panel.BorderStyle = BorderStyle.Fixed3D;
+            scannedType_panel.Controls.Add(label6);
+            scannedType_panel.Controls.Add(label5);
             scannedType_panel.Location = new Point(12, 50);
             scannedType_panel.Name = "scannedType_panel";
             scannedType_panel.Size = new Size(628, 750);
             scannedType_panel.TabIndex = 3;
+            // 
+            // label6
+            // 
+            label6.AutoSize = true;
+            label6.Font = new Font("Segoe UI Semibold", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            label6.Location = new Point(201, 379);
+            label6.Name = "label6";
+            label6.Size = new Size(259, 21);
+            label6.TabIndex = 1;
+            label6.Text = "Click \"Add\" to Scan and Add Book";
+            // 
+            // label5
+            // 
+            label5.AutoSize = true;
+            label5.Font = new Font("Segoe UI Semibold", 18F, FontStyle.Bold | FontStyle.Italic, GraphicsUnit.Point, 0);
+            label5.Location = new Point(181, 336);
+            label5.Name = "label5";
+            label5.Size = new Size(301, 32);
+            label5.TabIndex = 0;
+            label5.Text = "No Books Currently Added";
             // 
             // panel6
             // 
@@ -508,6 +490,7 @@
             // viewScannedBooks_btn
             // 
             viewScannedBooks_btn.BorderRadius = 5;
+            viewScannedBooks_btn.BorderThickness = 1;
             viewScannedBooks_btn.CustomizableEdges = customizableEdges9;
             viewScannedBooks_btn.DisabledState.BorderColor = Color.DarkGray;
             viewScannedBooks_btn.DisabledState.CustomBorderColor = Color.DarkGray;
@@ -527,6 +510,7 @@
             // add_btn
             // 
             add_btn.BorderRadius = 5;
+            add_btn.BorderThickness = 1;
             add_btn.CustomizableEdges = customizableEdges11;
             add_btn.DisabledState.BorderColor = Color.DarkGray;
             add_btn.DisabledState.CustomBorderColor = Color.DarkGray;
@@ -621,6 +605,8 @@
             panel2.ResumeLayout(false);
             panel2.PerformLayout();
             panel3.ResumeLayout(false);
+            scannedType_panel.ResumeLayout(false);
+            scannedType_panel.PerformLayout();
             panel6.ResumeLayout(false);
             panel6.PerformLayout();
             panel4.ResumeLayout(false);
@@ -642,11 +628,8 @@
         private Label label2;
         private Label label3;
         private Panel panel8;
-        private Guna.UI2.WinForms.Guna2Button guna2Button1;
+        private Guna.UI2.WinForms.Guna2Button borrow_btn;
         private Label label4;
-        private Label bookId_lbl;
-        private Label userId_lbl;
-        private Label bookNumber_lbl;
         private Guna.UI2.WinForms.Guna2CustomGradientPanel guna2CustomGradientPanel1;
         private Panel panel9;
         private Label fullName_lbl;
@@ -671,9 +654,10 @@
         private PictureBox profile_pictureBox;
         private Guna.UI2.WinForms.Guna2CustomGradientPanel guna2CustomGradientPanel2;
         private Panel scannedType_panel;
-        private Label researchPaperID_lbl;
         private Panel generateReceipt_panel;
         private Guna.UI2.WinForms.Guna2Button add_btn;
         private Guna.UI2.WinForms.Guna2Button viewScannedBooks_btn;
+        private Label label5;
+        private Label label6;
     }
 }

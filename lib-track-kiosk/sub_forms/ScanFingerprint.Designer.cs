@@ -37,7 +37,7 @@
             panel1 = new Panel();
             panel9 = new Panel();
             status_label = new Label();
-            guna2Button3 = new Guna.UI2.WinForms.Guna2Button();
+            cancel_btn = new Guna.UI2.WinForms.Guna2Button();
             panel3 = new Panel();
             panel4 = new Panel();
             panel5 = new Panel();
@@ -102,7 +102,7 @@
             // 
             panel9.BackColor = SystemColors.ActiveCaption;
             panel9.Controls.Add(status_label);
-            panel9.Controls.Add(guna2Button3);
+            panel9.Controls.Add(cancel_btn);
             panel9.Location = new Point(39, 492);
             panel9.Name = "panel9";
             panel9.Size = new Size(609, 71);
@@ -118,24 +118,25 @@
             status_label.TabIndex = 46;
             status_label.Text = "-";
             // 
-            // guna2Button3
+            // cancel_btn
             // 
-            guna2Button3.BorderRadius = 5;
-            guna2Button3.BorderThickness = 1;
-            guna2Button3.CustomizableEdges = customizableEdges1;
-            guna2Button3.DisabledState.BorderColor = Color.DarkGray;
-            guna2Button3.DisabledState.CustomBorderColor = Color.DarkGray;
-            guna2Button3.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
-            guna2Button3.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
-            guna2Button3.FillColor = Color.FromArgb(192, 0, 0);
-            guna2Button3.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            guna2Button3.ForeColor = Color.White;
-            guna2Button3.Location = new Point(437, 10);
-            guna2Button3.Name = "guna2Button3";
-            guna2Button3.ShadowDecoration.CustomizableEdges = customizableEdges2;
-            guna2Button3.Size = new Size(160, 51);
-            guna2Button3.TabIndex = 20;
-            guna2Button3.Text = "CANCEL";
+            cancel_btn.BorderRadius = 5;
+            cancel_btn.BorderThickness = 1;
+            cancel_btn.CustomizableEdges = customizableEdges1;
+            cancel_btn.DisabledState.BorderColor = Color.DarkGray;
+            cancel_btn.DisabledState.CustomBorderColor = Color.DarkGray;
+            cancel_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
+            cancel_btn.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
+            cancel_btn.FillColor = Color.FromArgb(192, 0, 0);
+            cancel_btn.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            cancel_btn.ForeColor = Color.White;
+            cancel_btn.Location = new Point(437, 10);
+            cancel_btn.Name = "cancel_btn";
+            cancel_btn.ShadowDecoration.CustomizableEdges = customizableEdges2;
+            cancel_btn.Size = new Size(160, 51);
+            cancel_btn.TabIndex = 20;
+            cancel_btn.Text = "CANCEL";
+            cancel_btn.Click += cancel_btn_Click;
             // 
             // panel3
             // 
@@ -205,7 +206,7 @@
         private PictureBox finger_picturebox;
         private Panel panel1;
         private Panel panel9;
-        private Guna.UI2.WinForms.Guna2Button guna2Button3;
+        private Guna.UI2.WinForms.Guna2Button cancel_btn;
         private Label status_label;
         private Panel panel3;
         private Panel panel4;

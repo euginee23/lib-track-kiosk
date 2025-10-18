@@ -28,16 +28,16 @@
         /// </summary>
         private void InitializeComponent()
         {
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges1 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges2 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            pictureBox1 = new PictureBox();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges3 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges4 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            cover_pbx = new PictureBox();
             guna2CustomGradientPanel2 = new Guna.UI2.WinForms.Guna2CustomGradientPanel();
             label1 = new Label();
             label3 = new Label();
-            richTextBox1 = new RichTextBox();
-            richTextBox2 = new RichTextBox();
+            bookTitle_rtbx = new RichTextBox();
+            authors_rtbx = new RichTextBox();
             label2 = new Label();
-            richTextBox3 = new RichTextBox();
+            publishers_rtbx = new RichTextBox();
             label4 = new Label();
             panel9 = new Panel();
             label5 = new Label();
@@ -48,40 +48,40 @@
             panel1 = new Panel();
             label10 = new Label();
             label11 = new Label();
-            label12 = new Label();
-            label13 = new Label();
-            label14 = new Label();
-            label15 = new Label();
-            label16 = new Label();
-            label17 = new Label();
-            label18 = new Label();
-            label19 = new Label();
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
+            shelfLocation_lbl = new Label();
+            year_lbl = new Label();
+            edition_lbl = new Label();
+            price_lbl = new Label();
+            donor_lbl = new Label();
+            copiesAvailable_lbl = new Label();
+            bookNumberCopy_lbl = new Label();
+            status_lbl = new Label();
+            ((System.ComponentModel.ISupportInitialize)cover_pbx).BeginInit();
             guna2CustomGradientPanel2.SuspendLayout();
             SuspendLayout();
             // 
-            // pictureBox1
+            // cover_pbx
             // 
-            pictureBox1.BorderStyle = BorderStyle.Fixed3D;
-            pictureBox1.Location = new Point(13, 13);
-            pictureBox1.Name = "pictureBox1";
-            pictureBox1.Size = new Size(191, 311);
-            pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
-            pictureBox1.TabIndex = 0;
-            pictureBox1.TabStop = false;
+            cover_pbx.BorderStyle = BorderStyle.Fixed3D;
+            cover_pbx.Location = new Point(13, 13);
+            cover_pbx.Name = "cover_pbx";
+            cover_pbx.Size = new Size(191, 311);
+            cover_pbx.SizeMode = PictureBoxSizeMode.StretchImage;
+            cover_pbx.TabIndex = 0;
+            cover_pbx.TabStop = false;
             // 
             // guna2CustomGradientPanel2
             // 
-            guna2CustomGradientPanel2.BackColor = SystemColors.Control;
+            guna2CustomGradientPanel2.BackColor = SystemColors.ButtonHighlight;
             guna2CustomGradientPanel2.BorderRadius = 10;
-            guna2CustomGradientPanel2.Controls.Add(pictureBox1);
-            guna2CustomGradientPanel2.CustomizableEdges = customizableEdges1;
+            guna2CustomGradientPanel2.Controls.Add(cover_pbx);
+            guna2CustomGradientPanel2.CustomizableEdges = customizableEdges3;
             guna2CustomGradientPanel2.FillColor = Color.FromArgb(0, 0, 64);
             guna2CustomGradientPanel2.FillColor2 = Color.Maroon;
             guna2CustomGradientPanel2.FillColor3 = Color.Black;
             guna2CustomGradientPanel2.Location = new Point(18, 14);
             guna2CustomGradientPanel2.Name = "guna2CustomGradientPanel2";
-            guna2CustomGradientPanel2.ShadowDecoration.CustomizableEdges = customizableEdges2;
+            guna2CustomGradientPanel2.ShadowDecoration.CustomizableEdges = customizableEdges4;
             guna2CustomGradientPanel2.Size = new Size(216, 338);
             guna2CustomGradientPanel2.TabIndex = 22;
             // 
@@ -105,23 +105,23 @@
             label3.TabIndex = 25;
             label3.Text = "Authors:";
             // 
-            // richTextBox1
+            // bookTitle_rtbx
             // 
-            richTextBox1.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
-            richTextBox1.Location = new Point(249, 32);
-            richTextBox1.Name = "richTextBox1";
-            richTextBox1.Size = new Size(364, 84);
-            richTextBox1.TabIndex = 26;
-            richTextBox1.Text = "";
+            bookTitle_rtbx.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
+            bookTitle_rtbx.Location = new Point(249, 32);
+            bookTitle_rtbx.Name = "bookTitle_rtbx";
+            bookTitle_rtbx.Size = new Size(364, 84);
+            bookTitle_rtbx.TabIndex = 26;
+            bookTitle_rtbx.Text = "";
             // 
-            // richTextBox2
+            // authors_rtbx
             // 
-            richTextBox2.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
-            richTextBox2.Location = new Point(249, 148);
-            richTextBox2.Name = "richTextBox2";
-            richTextBox2.Size = new Size(364, 84);
-            richTextBox2.TabIndex = 27;
-            richTextBox2.Text = "";
+            authors_rtbx.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
+            authors_rtbx.Location = new Point(249, 148);
+            authors_rtbx.Name = "authors_rtbx";
+            authors_rtbx.Size = new Size(364, 84);
+            authors_rtbx.TabIndex = 27;
+            authors_rtbx.Text = "";
             // 
             // label2
             // 
@@ -133,14 +133,14 @@
             label2.TabIndex = 28;
             label2.Text = "Publishers:";
             // 
-            // richTextBox3
+            // publishers_rtbx
             // 
-            richTextBox3.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
-            richTextBox3.Location = new Point(249, 268);
-            richTextBox3.Name = "richTextBox3";
-            richTextBox3.Size = new Size(364, 84);
-            richTextBox3.TabIndex = 29;
-            richTextBox3.Text = "";
+            publishers_rtbx.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
+            publishers_rtbx.Location = new Point(249, 268);
+            publishers_rtbx.Name = "publishers_rtbx";
+            publishers_rtbx.Size = new Size(364, 84);
+            publishers_rtbx.TabIndex = 29;
+            publishers_rtbx.Text = "";
             // 
             // label4
             // 
@@ -236,98 +236,99 @@
             label11.TabIndex = 38;
             label11.Text = "Status:";
             // 
-            // label12
+            // shelfLocation_lbl
             // 
-            label12.AutoSize = true;
-            label12.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label12.Location = new Point(139, 394);
-            label12.Name = "label12";
-            label12.Size = new Size(12, 15);
-            label12.TabIndex = 39;
-            label12.Text = "-";
+            shelfLocation_lbl.AutoSize = true;
+            shelfLocation_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            shelfLocation_lbl.Location = new Point(139, 394);
+            shelfLocation_lbl.Name = "shelfLocation_lbl";
+            shelfLocation_lbl.Size = new Size(12, 15);
+            shelfLocation_lbl.TabIndex = 39;
+            shelfLocation_lbl.Text = "-";
             // 
-            // label13
+            // year_lbl
             // 
-            label13.AutoSize = true;
-            label13.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label13.Location = new Point(139, 418);
-            label13.Name = "label13";
-            label13.Size = new Size(12, 15);
-            label13.TabIndex = 40;
-            label13.Text = "-";
+            year_lbl.AutoSize = true;
+            year_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            year_lbl.Location = new Point(139, 418);
+            year_lbl.Name = "year_lbl";
+            year_lbl.Size = new Size(12, 15);
+            year_lbl.TabIndex = 40;
+            year_lbl.Text = "-";
             // 
-            // label14
+            // edition_lbl
             // 
-            label14.AutoSize = true;
-            label14.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label14.Location = new Point(139, 446);
-            label14.Name = "label14";
-            label14.Size = new Size(12, 15);
-            label14.TabIndex = 41;
-            label14.Text = "-";
+            edition_lbl.AutoSize = true;
+            edition_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            edition_lbl.Location = new Point(139, 446);
+            edition_lbl.Name = "edition_lbl";
+            edition_lbl.Size = new Size(12, 15);
+            edition_lbl.TabIndex = 41;
+            edition_lbl.Text = "-";
             // 
-            // label15
+            // price_lbl
             // 
-            label15.AutoSize = true;
-            label15.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label15.Location = new Point(139, 472);
-            label15.Name = "label15";
-            label15.Size = new Size(12, 15);
-            label15.TabIndex = 42;
-            label15.Text = "-";
+            price_lbl.AutoSize = true;
+            price_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            price_lbl.Location = new Point(139, 472);
+            price_lbl.Name = "price_lbl";
+            price_lbl.Size = new Size(12, 15);
+            price_lbl.TabIndex = 42;
+            price_lbl.Text = "-";
             // 
-            // label16
+            // donor_lbl
             // 
-            label16.AutoSize = true;
-            label16.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label16.Location = new Point(139, 500);
-            label16.Name = "label16";
-            label16.Size = new Size(12, 15);
-            label16.TabIndex = 43;
-            label16.Text = "-";
+            donor_lbl.AutoSize = true;
+            donor_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            donor_lbl.Location = new Point(139, 500);
+            donor_lbl.Name = "donor_lbl";
+            donor_lbl.Size = new Size(12, 15);
+            donor_lbl.TabIndex = 43;
+            donor_lbl.Text = "-";
             // 
-            // label17
+            // copiesAvailable_lbl
             // 
-            label17.AutoSize = true;
-            label17.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label17.Location = new Point(139, 526);
-            label17.Name = "label17";
-            label17.Size = new Size(12, 15);
-            label17.TabIndex = 44;
-            label17.Text = "-";
+            copiesAvailable_lbl.AutoSize = true;
+            copiesAvailable_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            copiesAvailable_lbl.Location = new Point(139, 526);
+            copiesAvailable_lbl.Name = "copiesAvailable_lbl";
+            copiesAvailable_lbl.Size = new Size(12, 15);
+            copiesAvailable_lbl.TabIndex = 44;
+            copiesAvailable_lbl.Text = "-";
             // 
-            // label18
+            // bookNumberCopy_lbl
             // 
-            label18.AutoSize = true;
-            label18.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label18.Location = new Point(197, 616);
-            label18.Name = "label18";
-            label18.Size = new Size(12, 15);
-            label18.TabIndex = 45;
-            label18.Text = "-";
+            bookNumberCopy_lbl.AutoSize = true;
+            bookNumberCopy_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            bookNumberCopy_lbl.Location = new Point(197, 616);
+            bookNumberCopy_lbl.Name = "bookNumberCopy_lbl";
+            bookNumberCopy_lbl.Size = new Size(12, 15);
+            bookNumberCopy_lbl.TabIndex = 45;
+            bookNumberCopy_lbl.Text = "-";
             // 
-            // label19
+            // status_lbl
             // 
-            label19.AutoSize = true;
-            label19.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label19.Location = new Point(197, 645);
-            label19.Name = "label19";
-            label19.Size = new Size(12, 15);
-            label19.TabIndex = 46;
-            label19.Text = "-";
+            status_lbl.AutoSize = true;
+            status_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            status_lbl.Location = new Point(197, 645);
+            status_lbl.Name = "status_lbl";
+            status_lbl.Size = new Size(12, 15);
+            status_lbl.TabIndex = 46;
+            status_lbl.Text = "-";
             // 
             // UC_ScannedBookInformation
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            Controls.Add(label19);
-            Controls.Add(label18);
-            Controls.Add(label17);
-            Controls.Add(label16);
-            Controls.Add(label15);
-            Controls.Add(label14);
-            Controls.Add(label13);
-            Controls.Add(label12);
+            BackColor = SystemColors.ButtonHighlight;
+            Controls.Add(status_lbl);
+            Controls.Add(bookNumberCopy_lbl);
+            Controls.Add(copiesAvailable_lbl);
+            Controls.Add(donor_lbl);
+            Controls.Add(price_lbl);
+            Controls.Add(edition_lbl);
+            Controls.Add(year_lbl);
+            Controls.Add(shelfLocation_lbl);
             Controls.Add(label11);
             Controls.Add(label10);
             Controls.Add(panel1);
@@ -338,16 +339,17 @@
             Controls.Add(label5);
             Controls.Add(panel9);
             Controls.Add(label4);
-            Controls.Add(richTextBox3);
+            Controls.Add(publishers_rtbx);
             Controls.Add(label2);
-            Controls.Add(richTextBox2);
-            Controls.Add(richTextBox1);
+            Controls.Add(authors_rtbx);
+            Controls.Add(bookTitle_rtbx);
             Controls.Add(label3);
             Controls.Add(label1);
             Controls.Add(guna2CustomGradientPanel2);
             Name = "UC_ScannedBookInformation";
             Size = new Size(628, 750);
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
+            Load += UC_ScannedBookInformation_Load;
+            ((System.ComponentModel.ISupportInitialize)cover_pbx).EndInit();
             guna2CustomGradientPanel2.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
@@ -355,14 +357,14 @@
 
         #endregion
 
-        private PictureBox pictureBox1;
+        private PictureBox cover_pbx;
         private Guna.UI2.WinForms.Guna2CustomGradientPanel guna2CustomGradientPanel2;
         private Label label1;
         private Label label3;
-        private RichTextBox richTextBox1;
-        private RichTextBox richTextBox2;
+        private RichTextBox bookTitle_rtbx;
+        private RichTextBox authors_rtbx;
         private Label label2;
-        private RichTextBox richTextBox3;
+        private RichTextBox publishers_rtbx;
         private Label label4;
         private Panel panel9;
         private Label label5;
@@ -373,13 +375,13 @@
         private Panel panel1;
         private Label label10;
         private Label label11;
-        private Label label12;
-        private Label label13;
-        private Label label14;
-        private Label label15;
-        private Label label16;
-        private Label label17;
-        private Label label18;
-        private Label label19;
+        private Label shelfLocation_lbl;
+        private Label year_lbl;
+        private Label edition_lbl;
+        private Label price_lbl;
+        private Label donor_lbl;
+        private Label copiesAvailable_lbl;
+        private Label bookNumberCopy_lbl;
+        private Label status_lbl;
     }
 }

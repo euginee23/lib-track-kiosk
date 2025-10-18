@@ -33,8 +33,8 @@ namespace lib_track_kiosk.sub_forms
 
         private bool _decodingActive = false;
 
-        // ✅ Results to return
-        public string ScannedType { get; private set; }          // <-- Added
+        // RESULT PROPERTIES
+        public string ScannedType { get; private set; } 
         public int? ScannedBookId { get; private set; }
         public string ScannedBookNumber { get; private set; }
         public int? ScannedResearchPaperId { get; private set; }
@@ -46,7 +46,7 @@ namespace lib_track_kiosk.sub_forms
             this.FormClosing += ScanBookQR_FormClosing;
         }
 
-        // 🔹 Initialize camera
+        // INIT CAMERA ON LOAD
         private void ScanBookQR_Load(object sender, EventArgs e)
         {
             try
@@ -76,7 +76,7 @@ namespace lib_track_kiosk.sub_forms
             }
         }
 
-        // 🔹 Show live camera feed
+        // SET NEW FRAME FROM CAMERA
         private void VideoSource_NewFrame(object sender, NewFrameEventArgs eventArgs)
         {
             try
@@ -102,7 +102,7 @@ namespace lib_track_kiosk.sub_forms
             catch { }
         }
 
-        // 🔹 QR Decode Loop
+        // QR CODE DETECTION TIMER
         private async void QrTimer_Tick(object sender, EventArgs e)
         {
             if (!_decodingActive) return;
@@ -137,7 +137,7 @@ namespace lib_track_kiosk.sub_forms
             }
         }
 
-        // 🔹 Send QR Data to Backend
+        // SEND QR DATA TO BACKEND
         private async Task SendQrDataToBackend(string qrData)
         {
             try
@@ -176,7 +176,7 @@ namespace lib_track_kiosk.sub_forms
                     {
                         var root = doc.RootElement;
 
-                        // ✅ check success
+                        // CHECK SUCCESS
                         if (!root.TryGetProperty("success", out var successEl) || successEl.ValueKind != JsonValueKind.True)
                         {
                             string msg = root.TryGetProperty("message", out var msgEl) && msgEl.ValueKind == JsonValueKind.String
@@ -187,7 +187,7 @@ namespace lib_track_kiosk.sub_forms
                             return;
                         }
 
-                        // ✅ get type
+                        // GET TYPE AND DATA
                         string type = root.TryGetProperty("type", out var typeEl) && typeEl.ValueKind == JsonValueKind.String
                             ? typeEl.GetString()
                             : null;
@@ -229,7 +229,7 @@ namespace lib_track_kiosk.sub_forms
                             }
                         }
 
-                        // ✅ Decide type and store scanned data
+                        // DETERMINE TYPE AND SET RESULTS
                         if (string.Equals(type, "book", StringComparison.OrdinalIgnoreCase))
                         {
                             ScannedType = "Book";
@@ -268,14 +268,14 @@ namespace lib_track_kiosk.sub_forms
             }
         }
 
-        // 🔹 Restart scanning if invalid
+        // RESTART SCAN METHOD
         private void RestartScan()
         {
             _decodingActive = true;
             _qrTimer?.Start();
         }
 
-        // 🔹 Stop and clean up
+        // STOP CAMERA ON FORM CLOSING
         private void ScanBookQR_FormClosing(object sender, FormClosingEventArgs e)
         {
             try
@@ -299,7 +299,7 @@ namespace lib_track_kiosk.sub_forms
             catch { }
         }
 
-        // 🔹 Stop camera safely
+        // STOP CAMERA METHOD
         private void StopCamera()
         {
             if (_videoSource != null)
@@ -318,6 +318,36 @@ namespace lib_track_kiosk.sub_forms
                     _videoSource.NewFrame -= VideoSource_NewFrame;
                     _videoSource = null;
                 }
+            }
+        }
+
+        private void cancel_btn_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                _decodingActive = false;
+                _qrTimer?.Stop();
+
+                var frame = System.Threading.Interlocked.Exchange(ref _currentFrame, null);
+                frame?.Dispose();
+
+                if (camera_pbx.Image != null)
+                {
+                    var img = camera_pbx.Image;
+                    camera_pbx.Image = null;
+                    img.Dispose();
+                }
+
+                StopCamera();
+
+                status_label.Text = "❌ Scan canceled.";
+
+                this.DialogResult = DialogResult.Cancel;
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error while canceling scan: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

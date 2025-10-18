@@ -19,6 +19,9 @@
     <Compile Update="sub_forms\SelectFingerType.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="sub_forms\ViewResearchAbstract.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Update="sub_forms\ViewScannedBooks.cs">
       <SubType>Form</SubType>
     </Compile>

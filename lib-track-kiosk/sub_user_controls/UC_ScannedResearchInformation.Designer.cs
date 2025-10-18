@@ -28,13 +28,13 @@
         /// </summary>
         private void InitializeComponent()
         {
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges3 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges4 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            label19 = new Label();
-            label15 = new Label();
-            label14 = new Label();
-            label13 = new Label();
-            label12 = new Label();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges1 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges2 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            status_lbl = new Label();
+            price_lbl = new Label();
+            department_lbl = new Label();
+            year_lbl = new Label();
+            shelfLocation_lbl = new Label();
             label11 = new Label();
             panel1 = new Panel();
             label7 = new Label();
@@ -42,64 +42,62 @@
             label5 = new Label();
             panel9 = new Panel();
             label4 = new Label();
-            richTextBox3 = new RichTextBox();
-            label2 = new Label();
-            richTextBox2 = new RichTextBox();
-            richTextBox1 = new RichTextBox();
+            authors_rtbx = new RichTextBox();
+            title_rtbx = new RichTextBox();
             label3 = new Label();
             label1 = new Label();
-            guna2Button1 = new Guna.UI2.WinForms.Guna2Button();
+            viewAbstract_btn = new Guna.UI2.WinForms.Guna2Button();
             SuspendLayout();
             // 
-            // label19
+            // status_lbl
             // 
-            label19.AutoSize = true;
-            label19.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label19.Location = new Point(72, 678);
-            label19.Name = "label19";
-            label19.Size = new Size(12, 15);
-            label19.TabIndex = 71;
-            label19.Text = "-";
+            status_lbl.AutoSize = true;
+            status_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            status_lbl.Location = new Point(72, 678);
+            status_lbl.Name = "status_lbl";
+            status_lbl.Size = new Size(12, 15);
+            status_lbl.TabIndex = 71;
+            status_lbl.Text = "-";
             // 
-            // label15
+            // price_lbl
             // 
-            label15.AutoSize = true;
-            label15.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label15.Location = new Point(135, 559);
-            label15.Name = "label15";
-            label15.Size = new Size(12, 15);
-            label15.TabIndex = 67;
-            label15.Text = "-";
+            price_lbl.AutoSize = true;
+            price_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            price_lbl.Location = new Point(135, 559);
+            price_lbl.Name = "price_lbl";
+            price_lbl.Size = new Size(12, 15);
+            price_lbl.TabIndex = 67;
+            price_lbl.Text = "-";
             // 
-            // label14
+            // department_lbl
             // 
-            label14.AutoSize = true;
-            label14.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label14.Location = new Point(135, 533);
-            label14.Name = "label14";
-            label14.Size = new Size(12, 15);
-            label14.TabIndex = 66;
-            label14.Text = "-";
+            department_lbl.AutoSize = true;
+            department_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            department_lbl.Location = new Point(135, 533);
+            department_lbl.Name = "department_lbl";
+            department_lbl.Size = new Size(12, 15);
+            department_lbl.TabIndex = 66;
+            department_lbl.Text = "-";
             // 
-            // label13
+            // year_lbl
             // 
-            label13.AutoSize = true;
-            label13.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label13.Location = new Point(135, 505);
-            label13.Name = "label13";
-            label13.Size = new Size(12, 15);
-            label13.TabIndex = 65;
-            label13.Text = "-";
+            year_lbl.AutoSize = true;
+            year_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            year_lbl.Location = new Point(135, 505);
+            year_lbl.Name = "year_lbl";
+            year_lbl.Size = new Size(12, 15);
+            year_lbl.TabIndex = 65;
+            year_lbl.Text = "-";
             // 
-            // label12
+            // shelfLocation_lbl
             // 
-            label12.AutoSize = true;
-            label12.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label12.Location = new Point(135, 481);
-            label12.Name = "label12";
-            label12.Size = new Size(12, 15);
-            label12.TabIndex = 64;
-            label12.Text = "-";
+            shelfLocation_lbl.AutoSize = true;
+            shelfLocation_lbl.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            shelfLocation_lbl.Location = new Point(135, 481);
+            shelfLocation_lbl.Name = "shelfLocation_lbl";
+            shelfLocation_lbl.Size = new Size(12, 15);
+            shelfLocation_lbl.TabIndex = 64;
+            shelfLocation_lbl.Text = "-";
             // 
             // label11
             // 
@@ -166,42 +164,23 @@
             label4.TabIndex = 54;
             label4.Text = "Shelf Location:";
             // 
-            // richTextBox3
+            // authors_rtbx
             // 
-            richTextBox3.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
-            richTextBox3.Location = new Point(21, 272);
-            richTextBox3.Name = "richTextBox3";
-            richTextBox3.Size = new Size(588, 84);
-            richTextBox3.TabIndex = 53;
-            richTextBox3.Text = "";
+            authors_rtbx.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
+            authors_rtbx.Location = new Point(21, 152);
+            authors_rtbx.Name = "authors_rtbx";
+            authors_rtbx.Size = new Size(588, 214);
+            authors_rtbx.TabIndex = 51;
+            authors_rtbx.Text = "";
             // 
-            // label2
+            // title_rtbx
             // 
-            label2.AutoSize = true;
-            label2.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
-            label2.Location = new Point(21, 254);
-            label2.Name = "label2";
-            label2.Size = new Size(64, 15);
-            label2.TabIndex = 52;
-            label2.Text = "Publishers:";
-            // 
-            // richTextBox2
-            // 
-            richTextBox2.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
-            richTextBox2.Location = new Point(21, 152);
-            richTextBox2.Name = "richTextBox2";
-            richTextBox2.Size = new Size(588, 84);
-            richTextBox2.TabIndex = 51;
-            richTextBox2.Text = "";
-            // 
-            // richTextBox1
-            // 
-            richTextBox1.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
-            richTextBox1.Location = new Point(21, 36);
-            richTextBox1.Name = "richTextBox1";
-            richTextBox1.Size = new Size(588, 84);
-            richTextBox1.TabIndex = 50;
-            richTextBox1.Text = "";
+            title_rtbx.Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold);
+            title_rtbx.Location = new Point(21, 36);
+            title_rtbx.Name = "title_rtbx";
+            title_rtbx.Size = new Size(588, 84);
+            title_rtbx.TabIndex = 50;
+            title_rtbx.Text = "";
             // 
             // label3
             // 
@@ -223,33 +202,35 @@
             label1.TabIndex = 48;
             label1.Text = "Title:";
             // 
-            // guna2Button1
+            // viewAbstract_btn
             // 
-            guna2Button1.BorderRadius = 5;
-            guna2Button1.CustomizableEdges = customizableEdges3;
-            guna2Button1.DisabledState.BorderColor = Color.DarkGray;
-            guna2Button1.DisabledState.CustomBorderColor = Color.DarkGray;
-            guna2Button1.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
-            guna2Button1.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
-            guna2Button1.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            guna2Button1.ForeColor = Color.White;
-            guna2Button1.Location = new Point(483, 372);
-            guna2Button1.Name = "guna2Button1";
-            guna2Button1.ShadowDecoration.CustomizableEdges = customizableEdges4;
-            guna2Button1.Size = new Size(127, 37);
-            guna2Button1.TabIndex = 72;
-            guna2Button1.Text = "View Abstract";
+            viewAbstract_btn.BorderRadius = 5;
+            viewAbstract_btn.CustomizableEdges = customizableEdges1;
+            viewAbstract_btn.DisabledState.BorderColor = Color.DarkGray;
+            viewAbstract_btn.DisabledState.CustomBorderColor = Color.DarkGray;
+            viewAbstract_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
+            viewAbstract_btn.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
+            viewAbstract_btn.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            viewAbstract_btn.ForeColor = Color.White;
+            viewAbstract_btn.Location = new Point(483, 372);
+            viewAbstract_btn.Name = "viewAbstract_btn";
+            viewAbstract_btn.ShadowDecoration.CustomizableEdges = customizableEdges2;
+            viewAbstract_btn.Size = new Size(127, 37);
+            viewAbstract_btn.TabIndex = 72;
+            viewAbstract_btn.Text = "View Abstract";
+            viewAbstract_btn.Click += viewAbstract_btn_Click;
             // 
             // UC_ScannedResearchInformation
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            Controls.Add(guna2Button1);
-            Controls.Add(label19);
-            Controls.Add(label15);
-            Controls.Add(label14);
-            Controls.Add(label13);
-            Controls.Add(label12);
+            BackColor = SystemColors.ControlLightLight;
+            Controls.Add(viewAbstract_btn);
+            Controls.Add(status_lbl);
+            Controls.Add(price_lbl);
+            Controls.Add(department_lbl);
+            Controls.Add(year_lbl);
+            Controls.Add(shelfLocation_lbl);
             Controls.Add(label11);
             Controls.Add(panel1);
             Controls.Add(label7);
@@ -257,25 +238,24 @@
             Controls.Add(label5);
             Controls.Add(panel9);
             Controls.Add(label4);
-            Controls.Add(richTextBox3);
-            Controls.Add(label2);
-            Controls.Add(richTextBox2);
-            Controls.Add(richTextBox1);
+            Controls.Add(authors_rtbx);
+            Controls.Add(title_rtbx);
             Controls.Add(label3);
             Controls.Add(label1);
             Name = "UC_ScannedResearchInformation";
             Size = new Size(628, 750);
+            Load += UC_ScannedResearchInformation_Load;
             ResumeLayout(false);
             PerformLayout();
         }
 
         #endregion
 
-        private Label label19;
-        private Label label15;
-        private Label label14;
-        private Label label13;
-        private Label label12;
+        private Label status_lbl;
+        private Label price_lbl;
+        private Label department_lbl;
+        private Label year_lbl;
+        private Label shelfLocation_lbl;
         private Label label11;
         private Panel panel1;
         private Label label7;
@@ -283,12 +263,10 @@
         private Label label5;
         private Panel panel9;
         private Label label4;
-        private RichTextBox richTextBox3;
-        private Label label2;
-        private RichTextBox richTextBox2;
-        private RichTextBox richTextBox1;
+        private RichTextBox authors_rtbx;
+        private RichTextBox title_rtbx;
         private Label label3;
         private Label label1;
-        private Guna.UI2.WinForms.Guna2Button guna2Button1;
+        private Guna.UI2.WinForms.Guna2Button viewAbstract_btn;
     }
 }

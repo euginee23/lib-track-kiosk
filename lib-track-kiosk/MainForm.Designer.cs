@@ -31,16 +31,14 @@
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             panel1 = new Panel();
             panel2 = new Panel();
+            label1 = new Label();
             pictureBox4 = new PictureBox();
-            pictureBox3 = new PictureBox();
             pictureBox2 = new PictureBox();
             panel3 = new Panel();
             panel4 = new Panel();
             panelContainer = new Panel();
-            label1 = new Label();
             panel2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pictureBox4).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
             SuspendLayout();
             // 
@@ -57,12 +55,22 @@
             panel2.BackColor = Color.Maroon;
             panel2.Controls.Add(label1);
             panel2.Controls.Add(pictureBox4);
-            panel2.Controls.Add(pictureBox3);
             panel2.Controls.Add(pictureBox2);
             panel2.Location = new Point(-2, 0);
             panel2.Name = "panel2";
             panel2.Size = new Size(1933, 76);
             panel2.TabIndex = 1;
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Font = new Font("Segoe UI", 18F, FontStyle.Italic, GraphicsUnit.Point, 0);
+            label1.ForeColor = Color.White;
+            label1.Location = new Point(100, 20);
+            label1.Name = "label1";
+            label1.Size = new Size(348, 32);
+            label1.TabIndex = 0;
+            label1.Text = "WMSU Lib-Track | CodeHub.Site";
             // 
             // pictureBox4
             // 
@@ -73,17 +81,6 @@
             pictureBox4.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox4.TabIndex = 22;
             pictureBox4.TabStop = false;
-            // 
-            // pictureBox3
-            // 
-            pictureBox3.Image = (Image)resources.GetObject("pictureBox3.Image");
-            pictureBox3.Location = new Point(1763, 4);
-            pictureBox3.Name = "pictureBox3";
-            pictureBox3.Size = new Size(65, 69);
-            pictureBox3.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox3.TabIndex = 13;
-            pictureBox3.TabStop = false;
-            pictureBox3.Click += Settings_Click;
             // 
             // pictureBox2
             // 
@@ -120,17 +117,6 @@
             panelContainer.Size = new Size(1869, 979);
             panelContainer.TabIndex = 11;
             // 
-            // label1
-            // 
-            label1.AutoSize = true;
-            label1.Font = new Font("Segoe UI", 18F, FontStyle.Italic, GraphicsUnit.Point, 0);
-            label1.ForeColor = Color.White;
-            label1.Location = new Point(100, 20);
-            label1.Name = "label1";
-            label1.Size = new Size(348, 32);
-            label1.TabIndex = 0;
-            label1.Text = "WMSU Lib-Track | CodeHub.Site";
-            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -150,7 +136,6 @@
             panel2.ResumeLayout(false);
             panel2.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)pictureBox4).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox3).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
             ResumeLayout(false);
         }
@@ -161,7 +146,6 @@
         private Panel panel2;
         private Panel panel3;
         private Panel panel4;
-        private PictureBox pictureBox3;
         private PictureBox pictureBox2;
         private Panel panelContainer;
         private PictureBox pictureBox4;

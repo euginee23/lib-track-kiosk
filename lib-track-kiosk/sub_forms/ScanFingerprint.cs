@@ -280,5 +280,23 @@ namespace lib_track_kiosk.sub_forms
             bmp.UnlockBits(data);
             return bmp;
         }
+
+        private void cancel_btn_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                ScannedUserId = null;
+                UpdateStatus("❌ Scan canceled by user.");
+
+                CleanupFingerprint();
+
+                this.DialogResult = DialogResult.Cancel;
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error while canceling scan: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
     }
 }

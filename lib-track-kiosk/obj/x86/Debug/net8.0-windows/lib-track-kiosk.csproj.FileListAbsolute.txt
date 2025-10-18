@@ -66,3 +66,4 @@ E:\Library-Tracker\lib-track-kiosk\lib-track-kiosk\obj\x86\Debug\net8.0-windows\
 E:\Library-Tracker\lib-track-kiosk\lib-track-kiosk\obj\x86\Debug\net8.0-windows\lib_track_kiosk.sub_user_controls.UC_ScannedResearchInformation.resources
 E:\Library-Tracker\lib-track-kiosk\lib-track-kiosk\obj\x86\Debug\net8.0-windows\lib_track_kiosk.sub_user_controls.UC_GenerateReceipt.resources
 E:\Library-Tracker\lib-track-kiosk\lib-track-kiosk\obj\x86\Debug\net8.0-windows\lib_track_kiosk.sub_forms.ViewScannedBooks.resources
+E:\Library-Tracker\lib-track-kiosk\lib-track-kiosk\obj\x86\Debug\net8.0-windows\lib_track_kiosk.sub_forms.ViewResearchAbstract.resources
