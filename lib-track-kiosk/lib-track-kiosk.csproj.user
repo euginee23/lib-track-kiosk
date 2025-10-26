@@ -10,6 +10,9 @@
     <Compile Update="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="sub_forms\PostAssessmentSurvey.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Update="sub_forms\ScanBookQR.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -23,6 +26,9 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Update="sub_forms\ViewScannedBooks.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="sub_forms\ViewSelectedBook.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Update="sub_user_controls\UC_GenerateReceipt.cs">

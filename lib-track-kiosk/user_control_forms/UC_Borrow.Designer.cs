@@ -181,21 +181,21 @@
             // 
             label20.AutoSize = true;
             label20.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
-            label20.Location = new Point(224, 549);
+            label20.Location = new Point(189, 549);
             label20.Name = "label20";
-            label20.Size = new Size(44, 19);
+            label20.Size = new Size(79, 19);
             label20.TabIndex = 18;
-            label20.Text = "Fines:";
+            label20.Text = "Total Fines:";
             // 
             // label21
             // 
             label21.AutoSize = true;
             label21.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
-            label21.Location = new Point(145, 518);
+            label21.Location = new Point(103, 518);
             label21.Name = "label21";
-            label21.Size = new Size(123, 19);
+            label21.Size = new Size(165, 19);
             label21.TabIndex = 17;
-            label21.Text = "Pending Penalties:";
+            label21.Text = "Pending Penalties Count:";
             // 
             // pendingPenalties_lbl
             // 

@@ -12,7 +12,11 @@ namespace lib_track_kiosk.helpers
     {
         private static readonly string apiUrl = $"{API_Backend.BaseUrl}/api/users/registrations";
 
-        public static async Task<(string FullName, string Email, string ContactNumber, string Department, string Position, string YearLevel, Image ProfilePhoto)> GetUserInfoAsync(int userId)
+        /// <summary>
+        /// Fetches user info including a new 'restriction' flag returned by the API.
+        /// Returns: (FullName, Email, ContactNumber, Department, Position, YearLevel, ProfilePhoto, IsRestricted)
+        /// </summary>
+        public static async Task<(string FullName, string Email, string ContactNumber, string Department, string Position, string YearLevel, Image ProfilePhoto, bool IsRestricted)> GetUserInfoAsync(int userId)
         {
             using (HttpClient client = new HttpClient())
             {
@@ -78,7 +82,42 @@ namespace lib_track_kiosk.helpers
                     }
                 }
 
-                return (fullName, email, contactNumber, department, position, yearLevel, profilePhoto);
+                bool isRestricted = false;
+                try
+                {
+                    var restrictionToken = user["restriction"];
+                    if (restrictionToken != null && restrictionToken.Type != JTokenType.Null)
+                    {
+                        if (restrictionToken.Type == JTokenType.Integer || restrictionToken.Type == JTokenType.Float)
+                        {
+                            isRestricted = restrictionToken.Value<int>() != 0;
+                        }
+                        else
+                        {
+                            string rstr = restrictionToken.ToString();
+                            if (int.TryParse(rstr, out int rInt))
+                            {
+                                isRestricted = rInt != 0;
+                            }
+                            else if (bool.TryParse(rstr, out bool rBool))
+                            {
+                                isRestricted = rBool;
+                            }
+                            else
+                            {
+                                // unknown format — default to false but log for debugging
+                                Console.WriteLine($"⚠️ Unknown restriction token format: {restrictionToken.Type} / '{rstr}'");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Error parsing restriction flag: {ex.Message}");
+                    isRestricted = false;
+                }
+
+                return (fullName, email, contactNumber, department, position, yearLevel, profilePhoto, isRestricted);
             }
         }
 

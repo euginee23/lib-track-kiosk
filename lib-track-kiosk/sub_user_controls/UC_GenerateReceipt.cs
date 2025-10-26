@@ -77,13 +77,22 @@ namespace lib_track_kiosk.sub_user_controls
         {
             try
             {
-                var (fullName, email, contactNumber, department, position, yearLevel, profilePhoto) =
+                // NOTE: UserFetcher.GetUserInfoAsync now returns an 8-tuple where the last element is the 'IsRestricted' boolean.
+                // Deconstruct into eight variables to match the updated helper signature.
+                var (fullName, email, contactNumber, department, position, yearLevel, profilePhoto, isRestricted) =
                     await UserFetcher.GetUserInfoAsync(userId);
 
                 fullName_lbl.Text = fullName;
                 contactNumber_lbl.Text = contactNumber;
                 email_lbl.Text = email;
                 yearAndDepartment_lbl.Text = $"{yearLevel} - {department}";
+
+                // If needed, you can react to isRestricted here (e.g., show an indicator or disable actions).
+                if (isRestricted)
+                {
+                    // Log for now — UC_Borrow handles account restriction UX. Adjust here if you want receipt UI to change.
+                    Console.WriteLine($"⚠️ User {userId} is restricted.");
+                }
 
                 Console.WriteLine($"✅ User info loaded for {fullName}");
             }

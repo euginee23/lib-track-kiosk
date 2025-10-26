@@ -2,8 +2,11 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using lib_track_kiosk.models;
+using lib_track_kiosk.configs;
 
 namespace lib_track_kiosk.sub_user_controls
 {
@@ -27,15 +30,87 @@ namespace lib_track_kiosk.sub_user_controls
 
         private readonly Random _rand = new Random();
 
+        // On-screen keyboard helper (reusable)
+        private OnScreenKeyboard _osk;
+
+        // track currently selected card so we can toggle selection visuals
+        private Panel _selectedCard;
+
         public UC_LookResearchPapers()
         {
             InitializeComponent();
+
+            // instantiate keyboard helper (lazy alternative is possible)
+            _osk = new OnScreenKeyboard();
+
+            // Wire keyboard open/close to the search textbox if it exists
+            if (search_txtBox != null)
+            {
+                search_txtBox.GotFocus += SearchTxtBox_GotFocus;
+                search_txtBox.Enter += SearchTxtBox_GotFocus;
+                search_txtBox.Click += SearchTxtBox_Click;
+                search_txtBox.LostFocus += SearchTxtBox_LostFocus;
+            }
+
+            // clean up on disposal (avoid designer Dispose conflict)
+            this.Disposed += UC_LookResearchPapers_Disposed;
+
+            // reduce flicker by enabling double buffering on the flow panel (non-public property)
+            TryEnableDoubleBuffer(research_FlowLayoutPanel);
+
             LoadResearchPapers();
             abstract_rtbx.Text = "📄 Please select a research paper to view its abstract.";
 
             // 🖱️ Scroll button handlers
             scrollUp_btn.Click += ScrollUp_btn_Click;
             scrollDown_btn.Click += ScrollDown_btn_Click;
+        }
+
+        private void UC_LookResearchPapers_Disposed(object sender, EventArgs e)
+        {
+            try
+            {
+                if (search_txtBox != null)
+                {
+                    search_txtBox.GotFocus -= SearchTxtBox_GotFocus;
+                    search_txtBox.Enter -= SearchTxtBox_GotFocus;
+                    search_txtBox.Click -= SearchTxtBox_Click;
+                    search_txtBox.LostFocus -= SearchTxtBox_LostFocus;
+                }
+            }
+            catch { /* ignore */ }
+
+            try
+            {
+                _osk?.Dispose();
+            }
+            catch { /* ignore */ }
+        }
+
+        private void SearchTxtBox_Click(object sender, EventArgs e) => TryOpenKeyboard();
+        private void SearchTxtBox_GotFocus(object sender, EventArgs e) => TryOpenKeyboard();
+
+        private async void SearchTxtBox_LostFocus(object sender, EventArgs e)
+        {
+            // Debounce so quick focus moves within this control don't close the keyboard immediately
+            await Task.Delay(150);
+            try
+            {
+                // If focus has left this UserControl entirely, close the keyboard
+                if (!this.ContainsFocus)
+                    TryCloseKeyboard();
+            }
+            catch { /* best-effort */ }
+        }
+
+        private void TryOpenKeyboard()
+        {
+            try { _osk?.Open(); } catch { /* ignore */ }
+        }
+
+        private void TryCloseKeyboard()
+        {
+            try { _osk?.Close(); } catch { /* ignore */ }
         }
 
         private void LoadResearchPapers()
@@ -159,23 +234,55 @@ namespace lib_track_kiosk.sub_user_controls
                 NativeMethods.CreateRoundRectRgn(0, 0, year.Width, year.Height, 8, 8)
             );
 
-            card.MouseEnter += (s, e) =>
+            // Selection visual setter (no hover visuals)
+            void SetCardSelectedVisual(Panel p, bool selected)
             {
-                card.BackColor = Color.FromArgb(245, 245, 245);
-                card.BorderStyle = BorderStyle.Fixed3D;
-            };
-            card.MouseLeave += (s, e) =>
+                if (p == null) return;
+                if (selected)
+                {
+                    p.BackColor = Color.FromArgb(235, 245, 255);
+                    p.BorderStyle = BorderStyle.Fixed3D;
+                }
+                else
+                {
+                    p.BackColor = Color.White;
+                    p.BorderStyle = BorderStyle.FixedSingle;
+                }
+            }
+
+            // click handler selects this card and shows the abstract
+            void Card_Click(object sender, EventArgs e)
             {
-                card.BackColor = Color.White;
-                card.BorderStyle = BorderStyle.FixedSingle;
-            };
+                // deselect all cards first
+                foreach (Control ctrl in research_FlowLayoutPanel.Controls)
+                {
+                    if (ctrl is Panel pnl)
+                        SetCardSelectedVisual(pnl, false);
+                }
 
-            card.Click += (s, e) => ShowAbstract(paper);
+                // select clicked card
+                _selectedCard = card;
+                SetCardSelectedVisual(card, true);
 
+                ShowAbstract(paper);
+            }
+
+            // Add controls then wire clicks — forward child clicks to the card click handler
             card.Controls.Add(topBar);
             card.Controls.Add(title);
             card.Controls.Add(authors);
             card.Controls.Add(year);
+
+            // Attach click handlers to the card and all children so clicks anywhere select it.
+            Action<Control> attachClickRecursively = null;
+            attachClickRecursively = (ctrl) =>
+            {
+                ctrl.Click += Card_Click;
+                foreach (Control child in ctrl.Controls)
+                    attachClickRecursively(child);
+            };
+
+            attachClickRecursively(card);
 
             research_FlowLayoutPanel.Controls.Add(card);
         }
@@ -219,6 +326,21 @@ namespace lib_track_kiosk.sub_user_controls
                 newValue = maxValue;
 
             research_FlowLayoutPanel.AutoScrollPosition = new Point(0, newValue);
+        }
+
+        private void TryEnableDoubleBuffer(Control c)
+        {
+            if (c == null) return;
+            try
+            {
+                // set protected DoubleBuffered property using reflection
+                var prop = typeof(Control).GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic);
+                prop?.SetValue(c, true, null);
+            }
+            catch
+            {
+                // best-effort
+            }
         }
 
         private static class NativeMethods

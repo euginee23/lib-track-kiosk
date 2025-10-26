@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("lib-track-kiosk")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3a4a6313ed9cc054b674534f4f582370480cca2b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+487eacce22014008be28902720ce4b92f2e09697")]
 [assembly: System.Reflection.AssemblyProductAttribute("lib-track-kiosk")]
 [assembly: System.Reflection.AssemblyTitleAttribute("lib-track-kiosk")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

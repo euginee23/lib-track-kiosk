@@ -188,39 +188,12 @@ namespace lib_track_kiosk.sub_forms
 
         private void OnUserIdentified(int userId)
         {
+            // Set the scanned user id and update status, then close immediately.
             ScannedUserId = userId;
             UpdateStatus($"✅ Match found (User ID: {userId})");
 
-            try
-            {
-                Database db = new Database();
-                string connStr = $"server={db.Host};port={db.Port};database={db.Name};user={db.User};password={db.Password}";
-
-                using (var conn = new MySqlConnection(connStr))
-                {
-                    conn.Open();
-                    string query = "SELECT first_name, last_name FROM users WHERE user_id=@id LIMIT 1";
-                    using (var cmd = new MySqlCommand(query, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@id", userId);
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            if (reader.Read())
-                            {
-                                string fullName = $"{reader["first_name"]} {reader["last_name"]}";
-                                MessageBox.Show($"👤 Welcome, {fullName}!", "Fingerprint Verified",
-                                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                UpdateStatus("⚠️ Error loading user info: " + ex.Message);
-            }
-
-            // ✅ close and return result
+            // Do not show any MessageBox or interactive dialog here.
+            // Close the form and return DialogResult.OK to the caller.
             this.DialogResult = DialogResult.OK;
             this.Close();
         }
