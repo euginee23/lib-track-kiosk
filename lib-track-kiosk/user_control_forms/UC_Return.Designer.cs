@@ -28,14 +28,16 @@
         /// </summary>
         private void InitializeComponent()
         {
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges9 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges10 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges11 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges12 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges13 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges14 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges15 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges16 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges17 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges18 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges19 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges20 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             exitReturn_btn = new Guna.UI2.WinForms.Guna2Button();
             profile_pictureBox = new PictureBox();
             fines_lbl = new Label();
@@ -54,6 +56,14 @@
             panel4 = new Panel();
             scanBook_btn = new Guna.UI2.WinForms.Guna2Button();
             transactions_DGV = new DataGridView();
+            Column1 = new DataGridViewTextBoxColumn();
+            Column2 = new DataGridViewTextBoxColumn();
+            Column3 = new DataGridViewTextBoxColumn();
+            Column4 = new DataGridViewTextBoxColumn();
+            Column5 = new DataGridViewTextBoxColumn();
+            Column6 = new DataGridViewTextBoxColumn();
+            Column7 = new DataGridViewTextBoxColumn();
+            Column8 = new DataGridViewTextBoxColumn();
             position_lbl = new Label();
             department_lbl = new Label();
             label11 = new Label();
@@ -65,6 +75,7 @@
             email_lbl = new Label();
             label4 = new Label();
             panel2 = new Panel();
+            return_btn = new Guna.UI2.WinForms.Guna2Button();
             label1 = new Label();
             panel5 = new Panel();
             fullName_lbl = new Label();
@@ -72,14 +83,8 @@
             guna2CustomGradientPanel2 = new Guna.UI2.WinForms.Guna2CustomGradientPanel();
             guna2CustomGradientPanel1 = new Guna.UI2.WinForms.Guna2CustomGradientPanel();
             panel1 = new Panel();
-            Column1 = new DataGridViewTextBoxColumn();
-            Column2 = new DataGridViewTextBoxColumn();
-            Column3 = new DataGridViewTextBoxColumn();
-            Column4 = new DataGridViewTextBoxColumn();
-            Column5 = new DataGridViewTextBoxColumn();
-            Column6 = new DataGridViewTextBoxColumn();
-            Column7 = new DataGridViewTextBoxColumn();
-            Column8 = new DataGridViewTextBoxColumn();
+            status_cmbx = new ComboBox();
+            label3 = new Label();
             ((System.ComponentModel.ISupportInitialize)profile_pictureBox).BeginInit();
             panel6.SuspendLayout();
             panel3.SuspendLayout();
@@ -95,7 +100,7 @@
             // 
             exitReturn_btn.BorderRadius = 5;
             exitReturn_btn.BorderThickness = 1;
-            exitReturn_btn.CustomizableEdges = customizableEdges9;
+            exitReturn_btn.CustomizableEdges = customizableEdges11;
             exitReturn_btn.DisabledState.BorderColor = Color.DarkGray;
             exitReturn_btn.DisabledState.CustomBorderColor = Color.DarkGray;
             exitReturn_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
@@ -103,9 +108,9 @@
             exitReturn_btn.FillColor = Color.FromArgb(192, 0, 0);
             exitReturn_btn.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
             exitReturn_btn.ForeColor = Color.White;
-            exitReturn_btn.Location = new Point(1670, 10);
+            exitReturn_btn.Location = new Point(1502, 10);
             exitReturn_btn.Name = "exitReturn_btn";
-            exitReturn_btn.ShadowDecoration.CustomizableEdges = customizableEdges10;
+            exitReturn_btn.ShadowDecoration.CustomizableEdges = customizableEdges12;
             exitReturn_btn.Size = new Size(160, 51);
             exitReturn_btn.TabIndex = 16;
             exitReturn_btn.Text = "Cancel";
@@ -171,6 +176,8 @@
             // panel6
             // 
             panel6.BackColor = SystemColors.ControlDarkDark;
+            panel6.Controls.Add(label3);
+            panel6.Controls.Add(status_cmbx);
             panel6.Controls.Add(label2);
             panel6.Location = new Point(0, 0);
             panel6.Name = "panel6";
@@ -262,7 +269,7 @@
             // 
             scanBook_btn.BorderRadius = 5;
             scanBook_btn.BorderThickness = 1;
-            scanBook_btn.CustomizableEdges = customizableEdges11;
+            scanBook_btn.CustomizableEdges = customizableEdges13;
             scanBook_btn.DisabledState.BorderColor = Color.DarkGray;
             scanBook_btn.DisabledState.CustomBorderColor = Color.DarkGray;
             scanBook_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
@@ -272,7 +279,7 @@
             scanBook_btn.ForeColor = Color.White;
             scanBook_btn.Location = new Point(1039, 6);
             scanBook_btn.Name = "scanBook_btn";
-            scanBook_btn.ShadowDecoration.CustomizableEdges = customizableEdges12;
+            scanBook_btn.ShadowDecoration.CustomizableEdges = customizableEdges14;
             scanBook_btn.Size = new Size(297, 45);
             scanBook_btn.TabIndex = 5;
             scanBook_btn.Text = "Tap Here to Scan Book / Research to Return";
@@ -288,6 +295,62 @@
             transactions_DGV.RowHeadersVisible = false;
             transactions_DGV.Size = new Size(1322, 708);
             transactions_DGV.TabIndex = 3;
+            // 
+            // Column1
+            // 
+            Column1.HeaderText = "Type";
+            Column1.Name = "Column1";
+            Column1.ReadOnly = true;
+            Column1.Width = 150;
+            // 
+            // Column2
+            // 
+            Column2.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            Column2.HeaderText = "Title";
+            Column2.Name = "Column2";
+            Column2.ReadOnly = true;
+            // 
+            // Column3
+            // 
+            Column3.HeaderText = "Author(s)";
+            Column3.Name = "Column3";
+            Column3.ReadOnly = true;
+            Column3.Width = 250;
+            // 
+            // Column4
+            // 
+            Column4.HeaderText = "Reference Number";
+            Column4.Name = "Column4";
+            Column4.ReadOnly = true;
+            Column4.Width = 150;
+            // 
+            // Column5
+            // 
+            Column5.HeaderText = "Transaction Date";
+            Column5.Name = "Column5";
+            Column5.ReadOnly = true;
+            Column5.Width = 80;
+            // 
+            // Column6
+            // 
+            Column6.HeaderText = "Due Date";
+            Column6.Name = "Column6";
+            Column6.ReadOnly = true;
+            Column6.Width = 80;
+            // 
+            // Column7
+            // 
+            Column7.HeaderText = "Status";
+            Column7.Name = "Column7";
+            Column7.ReadOnly = true;
+            Column7.Width = 80;
+            // 
+            // Column8
+            // 
+            Column8.HeaderText = "Total Fine";
+            Column8.Name = "Column8";
+            Column8.ReadOnly = true;
+            Column8.Width = 80;
             // 
             // position_lbl
             // 
@@ -390,12 +453,33 @@
             // panel2
             // 
             panel2.BackColor = SystemColors.ActiveCaption;
+            panel2.Controls.Add(return_btn);
             panel2.Controls.Add(label4);
             panel2.Controls.Add(exitReturn_btn);
             panel2.Location = new Point(14, 14);
             panel2.Name = "panel2";
             panel2.Size = new Size(1840, 71);
             panel2.TabIndex = 25;
+            // 
+            // return_btn
+            // 
+            return_btn.BorderRadius = 5;
+            return_btn.BorderThickness = 1;
+            return_btn.CustomizableEdges = customizableEdges15;
+            return_btn.DisabledState.BorderColor = Color.DarkGray;
+            return_btn.DisabledState.CustomBorderColor = Color.DarkGray;
+            return_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
+            return_btn.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
+            return_btn.FillColor = Color.DarkOliveGreen;
+            return_btn.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            return_btn.ForeColor = Color.White;
+            return_btn.Location = new Point(1670, 10);
+            return_btn.Name = "return_btn";
+            return_btn.ShadowDecoration.CustomizableEdges = customizableEdges16;
+            return_btn.Size = new Size(160, 51);
+            return_btn.TabIndex = 20;
+            return_btn.Text = "RETURN";
+            return_btn.Click += return_btn_Click;
             // 
             // label1
             // 
@@ -439,11 +523,11 @@
             // 
             guna2CustomGradientPanel2.BackColor = Color.White;
             guna2CustomGradientPanel2.BorderRadius = 10;
-            guna2CustomGradientPanel2.CustomizableEdges = customizableEdges13;
+            guna2CustomGradientPanel2.CustomizableEdges = customizableEdges17;
             guna2CustomGradientPanel2.FillColor = Color.FromArgb(0, 0, 64);
             guna2CustomGradientPanel2.Location = new Point(34, 39);
             guna2CustomGradientPanel2.Name = "guna2CustomGradientPanel2";
-            guna2CustomGradientPanel2.ShadowDecoration.CustomizableEdges = customizableEdges14;
+            guna2CustomGradientPanel2.ShadowDecoration.CustomizableEdges = customizableEdges18;
             guna2CustomGradientPanel2.Size = new Size(370, 84);
             guna2CustomGradientPanel2.TabIndex = 21;
             // 
@@ -473,10 +557,10 @@
             guna2CustomGradientPanel1.Controls.Add(fullName_lbl);
             guna2CustomGradientPanel1.Controls.Add(panel9);
             guna2CustomGradientPanel1.Controls.Add(guna2CustomGradientPanel2);
-            guna2CustomGradientPanel1.CustomizableEdges = customizableEdges15;
+            guna2CustomGradientPanel1.CustomizableEdges = customizableEdges19;
             guna2CustomGradientPanel1.Location = new Point(17, 54);
             guna2CustomGradientPanel1.Name = "guna2CustomGradientPanel1";
-            guna2CustomGradientPanel1.ShadowDecoration.CustomizableEdges = customizableEdges16;
+            guna2CustomGradientPanel1.ShadowDecoration.CustomizableEdges = customizableEdges20;
             guna2CustomGradientPanel1.Size = new Size(447, 743);
             guna2CustomGradientPanel1.TabIndex = 2;
             // 
@@ -490,61 +574,24 @@
             panel1.Size = new Size(481, 815);
             panel1.TabIndex = 23;
             // 
-            // Column1
+            // status_cmbx
             // 
-            Column1.HeaderText = "Type";
-            Column1.Name = "Column1";
-            Column1.ReadOnly = true;
-            Column1.Width = 150;
+            status_cmbx.FormattingEnabled = true;
+            status_cmbx.Location = new Point(1004, 6);
+            status_cmbx.Name = "status_cmbx";
+            status_cmbx.Size = new Size(328, 23);
+            status_cmbx.TabIndex = 2;
             // 
-            // Column2
+            // label3
             // 
-            Column2.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            Column2.HeaderText = "Title";
-            Column2.Name = "Column2";
-            Column2.ReadOnly = true;
-            // 
-            // Column3
-            // 
-            Column3.HeaderText = "Author(s)";
-            Column3.Name = "Column3";
-            Column3.ReadOnly = true;
-            Column3.Width = 250;
-            // 
-            // Column4
-            // 
-            Column4.HeaderText = "Reference Number";
-            Column4.Name = "Column4";
-            Column4.ReadOnly = true;
-            Column4.Width = 150;
-            // 
-            // Column5
-            // 
-            Column5.HeaderText = "Transaction Date";
-            Column5.Name = "Column5";
-            Column5.ReadOnly = true;
-            Column5.Width = 80;
-            // 
-            // Column6
-            // 
-            Column6.HeaderText = "Due Date";
-            Column6.Name = "Column6";
-            Column6.ReadOnly = true;
-            Column6.Width = 80;
-            // 
-            // Column7
-            // 
-            Column7.HeaderText = "Status";
-            Column7.Name = "Column7";
-            Column7.ReadOnly = true;
-            Column7.Width = 80;
-            // 
-            // Column8
-            // 
-            Column8.HeaderText = "Total Fine";
-            Column8.Name = "Column8";
-            Column8.ReadOnly = true;
-            Column8.Width = 80;
+            label3.AutoSize = true;
+            label3.Font = new Font("Segoe UI Semibold", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            label3.ForeColor = SystemColors.ControlLightLight;
+            label3.Location = new Point(939, 6);
+            label3.Name = "label3";
+            label3.Size = new Size(59, 21);
+            label3.TabIndex = 28;
+            label3.Text = "Status:";
             // 
             // UC_Return
             // 
@@ -618,5 +665,8 @@
         private DataGridViewTextBoxColumn Column6;
         private DataGridViewTextBoxColumn Column7;
         private DataGridViewTextBoxColumn Column8;
+        private Guna.UI2.WinForms.Guna2Button return_btn;
+        private Label label3;
+        private ComboBox status_cmbx;
     }
 }

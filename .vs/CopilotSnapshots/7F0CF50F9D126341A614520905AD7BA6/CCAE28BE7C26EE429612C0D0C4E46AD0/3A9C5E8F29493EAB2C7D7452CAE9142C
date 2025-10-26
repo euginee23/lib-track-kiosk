@@ -19,9 +19,6 @@ namespace lib_track_kiosk.user_control_forms
     {
         private int? currentUserId;
 
-        // Turn this to true while debugging to show raw API JSON after fetch
-        private bool _debugShowRawApiResponse = false;
-
         // STORAGE FOR SCANNED ITEMS (for return)
         private List<(int bookId, string bookNumber)> scannedBooks = new List<(int, string)>();
         private List<int> scannedResearchPapers = new List<int>();
@@ -101,6 +98,8 @@ namespace lib_track_kiosk.user_control_forms
             // Prepare fixed indicator images now (fixed size, centered later via cell alignment)
             _checkImageFixed = CreateCheckImage(IndicatorImageSize);
             _xImageFixed = CreateXImage(IndicatorImageSize);
+
+            // Ensure we will recreate columns when populating
         }
 
         // 🔹 Load event — open ScanFingerprint
@@ -333,262 +332,225 @@ namespace lib_track_kiosk.user_control_forms
         }
 
         // ---------- Load transactions for the current user and populate transactions_DGV ----------
-        // This uses the TransactionsFetcher helper to get the JArray and then maps to rows.
-        // It also uses PenaltiesFetcher to show penalty status verbatim and uses the API 'status' field as authoritative when present.
+        // This uses the endpoint GET /api/transactions/user/:user_id
         private async Task LoadTransactionsForCurrentUserAsync()
         {
             if (!currentUserId.HasValue)
                 return;
 
+            string url = $"{lib_track_kiosk.configs.API_Backend.BaseUrl}/api/transactions/user/{currentUserId.Value}";
+
             try
             {
-                // Use TransactionsFetcher helper to get the JArray of transactions
-                var data = await TransactionsFetcher.GetTransactionsForUserAsync(currentUserId.Value);
-
-                // Optional: show raw response for debugging
-                if (_debugShowRawApiResponse)
+                using (var client = new HttpClient())
                 {
-                    try { ShowRawJsonDialog(data.ToString(Newtonsoft.Json.Formatting.Indented)); } catch { }
-                }
-
-                // Fetch penalties once and map ALL penalty statuses per transaction_id (if any)
-                // Also build penaltyFinesByTransaction so we can prefer penalty amounts when transaction doesn't include total_fine.
-                var penalties = await PenaltiesFetcher.GetPenaltiesForUserAsync(currentUserId.Value);
-                var penaltiesByTransaction = new Dictionary<int, List<string>>();
-                var penaltyFinesByTransaction = new Dictionary<int, double>();
-                var latestPenaltyByTransaction = new Dictionary<int, JToken>(); // preserve for any "latest" status checks if needed
-
-                if (penalties != null)
-                {
-                    foreach (var p in penalties.OfType<JObject>())
+                    var resp = await client.GetAsync(url);
+                    if (!resp.IsSuccessStatusCode)
                     {
-                        var txId = p.Value<int?>("transaction_id");
-                        if (!txId.HasValue) continue;
-                        var status = p.Value<string>("status") ?? string.Empty;
+                        MessageBox.Show($"❌ Failed to fetch transactions: {resp.ReasonPhrase}");
+                        return;
+                    }
 
-                        if (!penaltiesByTransaction.TryGetValue(txId.Value, out var list))
+                    var content = await resp.Content.ReadAsStringAsync();
+                    JObject root;
+                    try
+                    {
+                        root = JObject.Parse(content);
+                    }
+                    catch
+                    {
+                        MessageBox.Show("❌ Invalid JSON received from transactions endpoint.");
+                        return;
+                    }
+
+                    if (!root.TryGetValue("success", out var successToken) || successToken.Type != JTokenType.Boolean || !successToken.Value<bool>())
+                    {
+                        string msg = root.TryGetValue("message", out var m) ? m.ToString() : "Unknown error fetching transactions";
+                        MessageBox.Show($"⚠️ Transactions API returned error: {msg}");
+                        return;
+                    }
+
+                    var data = root["data"] as JArray;
+                    if (data == null)
+                    {
+                        MessageBox.Show("⚠️ Transactions API returned no data.");
+                        return;
+                    }
+
+                    // Build rows to add. We keep the visible columns same as before, but also capture book_id/research_paper_id for mapping.
+                    var rows = new List<(object[] Cells, int? bookId, int? researchId, string referenceNumber)>();
+
+                    foreach (var t in data)
+                    {
+                        bool hasBook = t["book_id"] != null && t["book_id"].Type != JTokenType.Null;
+                        bool hasResearch = t["research_paper_id"] != null && t["research_paper_id"].Type != JTokenType.Null;
+
+                        string type = hasBook ? "Book" : hasResearch ? "Research Paper" : "Unknown";
+
+                        string title = t.Value<string>("book_title")
+                                       ?? t.Value<string>("research_title")
+                                       ?? t.Value<string>("title")
+                                       ?? "";
+
+                        string authors = t.Value<string>("book_authors")
+                                         ?? t.Value<string>("research_authors")
+                                         ?? t.Value<string>("authors")
+                                         ?? "";
+
+                        if (string.IsNullOrWhiteSpace(authors))
                         {
-                            list = new List<string>();
-                            penaltiesByTransaction[txId.Value] = list;
+                            var fn = t.Value<string>("first_name") ?? "";
+                            var ln = t.Value<string>("last_name") ?? "";
+                            var combined = (fn + " " + ln).Trim();
+                            if (!string.IsNullOrEmpty(combined))
+                                authors = combined;
                         }
-                        list.Add(status);
 
-                        // accumulate fine value (best-effort parsing)
-                        double fineVal = 0.0;
-                        var fineToken = p["fine"];
-                        if (fineToken != null && fineToken.Type != JTokenType.Null)
+                        string referenceNumber = t["reference_number"]?.ToString()
+                                                 ?? t["referenceNumber"]?.ToString()
+                                                 ?? t["book_number"]?.ToString()
+                                                 ?? t["bookNumber"]?.ToString()
+                                                 ?? "";
+
+                        DateTime? parsedDueDate = null;
+                        DateTime? parsedTransactionDate = null;
+                        string transactionDate = "";
+                        string dueDate = "";
+
+                        var td = t["transaction_date"];
+                        if (td != null && td.Type != JTokenType.Null)
                         {
-                            var fStr = fineToken.ToString();
-                            if (!string.IsNullOrWhiteSpace(fStr))
+                            if (DateTime.TryParse(td.ToString(), out var parsedTd))
                             {
-                                if (double.TryParse(fStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var fv) ||
-                                    double.TryParse(fStr, NumberStyles.Any, CultureInfo.CurrentCulture, out fv))
-                                {
-                                    fineVal = fv;
-                                }
-                                else if (int.TryParse(fStr, out var iv))
-                                {
-                                    fineVal = iv;
-                                }
+                                parsedTransactionDate = parsedTd;
+                                transactionDate = parsedTd.ToString("yyyy-MM-dd HH:mm");
                             }
+                            else
+                                transactionDate = td.ToString();
                         }
 
-                        if (!penaltyFinesByTransaction.TryGetValue(txId.Value, out var acc))
-                            penaltyFinesByTransaction[txId.Value] = fineVal;
-                        else
-                            penaltyFinesByTransaction[txId.Value] = acc + fineVal;
-
-                        // maintain latestPenaltyByTransaction similar to original logic (by updated_at or id)
-                        if (!latestPenaltyByTransaction.TryGetValue(txId.Value, out var existing))
+                        var dd = t["due_date"];
+                        if (dd != null && dd.Type != JTokenType.Null)
                         {
-                            latestPenaltyByTransaction[txId.Value] = p;
-                        }
-                        else
-                        {
-                            DateTime existingDt = DateTime.MinValue, newDt = DateTime.MinValue;
-                            var exStr = existing["updated_at"]?.ToString();
-                            var newStr = p["updated_at"]?.ToString();
-                            DateTime.TryParse(exStr, out existingDt);
-                            DateTime.TryParse(newStr, out newDt);
-
-                            if (newDt > existingDt)
-                                latestPenaltyByTransaction[txId.Value] = p;
-                            else if (existingDt == DateTime.MinValue && p["penalty_id"] != null && existing["penalty_id"] != null)
+                            if (DateTime.TryParse(dd.ToString(), out var parsedDd))
                             {
-                                var exId = existing["penalty_id"]?.Value<int?>() ?? 0;
-                                var newId = p["penalty_id"]?.Value<int?>() ?? 0;
-                                if (newId > exId) latestPenaltyByTransaction[txId.Value] = p;
+                                dueDate = parsedDd.ToString("yyyy-MM-dd");
+                                parsedDueDate = parsedDd;
                             }
+                            else
+                                dueDate = dd.ToString();
                         }
-                    }
-                }
 
-                if (data == null || data.Count == 0)
-                {
-                    MessageBox.Show("⚠️ No transactions found for this user.");
-                    return;
-                }
+                        string apiStatus = t.Value<string>("status") ?? t.Value<string>("transaction_type") ?? "";
 
-                // Build rows to add.
-                var rows = new List<(object[] Cells, int? bookId, int? researchId, string referenceNumber)>();
+                        string totalFine = null;
+                        if (t["total_fine"] != null && t["total_fine"].Type != JTokenType.Null)
+                            totalFine = $"{t.Value<decimal?>("total_fine")?.ToString("N2") ?? "0.00"}";
+                        else if (t["fine_amount"] != null && t["fine_amount"].Type != JTokenType.Null)
+                            totalFine = $"{t.Value<decimal?>("fine_amount")?.ToString("N2") ?? "0.00"}";
+                        else if (t["totalFine"] != null && t["totalFine"].Type != JTokenType.Null)
+                            totalFine = $"{t.Value<decimal?>("totalFine")?.ToString("N2") ?? "0.00"}";
 
-                foreach (var t in data)
-                {
-                    bool hasBook = t["book_id"] != null && t["book_id"].Type != JTokenType.Null;
-                    bool hasResearch = t["research_paper_id"] != null && t["research_paper_id"].Type != JTokenType.Null;
-
-                    string type = hasBook ? "Book" : hasResearch ? "Research Paper" : "Unknown";
-
-                    string title = t.Value<string>("book_title")
-                                   ?? t.Value<string>("research_title")
-                                   ?? t.Value<string>("title")
-                                   ?? "";
-
-                    string authors = t.Value<string>("book_authors")
-                                     ?? t.Value<string>("research_authors")
-                                     ?? t.Value<string>("authors")
-                                     ?? "";
-
-                    if (string.IsNullOrWhiteSpace(authors))
-                    {
-                        var fn = t.Value<string>("first_name") ?? "";
-                        var ln = t.Value<string>("last_name") ?? "";
-                        var combined = (fn + " " + ln).Trim();
-                        if (!string.IsNullOrEmpty(combined))
-                            authors = combined;
-                    }
-
-                    string referenceNumber = t["reference_number"]?.ToString()
-                                             ?? t["referenceNumber"]?.ToString()
-                                             ?? t["book_number"]?.ToString()
-                                             ?? t["bookNumber"]?.ToString()
-                                             ?? "";
-
-                    DateTime? parsedDueDate = null;
-                    DateTime? parsedTransactionDate = null;
-                    string transactionDate = "";
-                    string dueDate = "";
-
-                    var td = t["transaction_date"];
-                    if (td != null && td.Type != JTokenType.Null)
-                    {
-                        if (DateTime.TryParse(td.ToString(), out var parsedTd))
+                        string displayStatus = apiStatus;
+                        try
                         {
-                            parsedTransactionDate = parsedTd;
-                            transactionDate = parsedTd.ToString("yyyy-MM-dd HH:mm");
-                        }
-                        else
-                            transactionDate = td.ToString();
-                    }
+                            var today = DateTime.Now.Date;
 
-                    var dd = t["due_date"];
-                    if (dd != null && dd.Type != JTokenType.Null)
-                    {
-                        if (DateTime.TryParse(dd.ToString(), out var parsedDd))
-                        {
-                            dueDate = parsedDd.ToString("yyyy-MM-dd");
-                            parsedDueDate = parsedDd;
-                        }
-                        else
-                            dueDate = dd.ToString();
-                    }
-
-                    // Read API-provided status fields - prefer normalized "status" (TransactionsFetcher already normalizes) but accept alternatives
-                    string apiStatusCandidate1 = t.Value<string>("status") ?? "";
-                    string apiStatusCandidate2 = t.Value<string>("transaction_status") ?? "";
-                    string apiType = t.Value<string>("transaction_type") ?? "";
-                    string apiStatusRaw = (!string.IsNullOrWhiteSpace(apiStatusCandidate1) ? apiStatusCandidate1 : (!string.IsNullOrWhiteSpace(apiStatusCandidate2) ? apiStatusCandidate2 : apiType ?? "")).Trim();
-
-                    // ---------- TOTAL FINE: prefer backend value, otherwise sum penalties for this transaction, otherwise compute overdue fine ----------
-                    double txFineValue = 0.0;
-                    bool backendFineFound = false;
-
-                    // prefer server-provided fields if present
-                    var totalFineToken = t["total_fine"] ?? t["fine_amount"] ?? t["totalFine"];
-                    if (totalFineToken != null && totalFineToken.Type != JTokenType.Null)
-                    {
-                        var tfStr = totalFineToken.ToString();
-                        if (!string.IsNullOrWhiteSpace(tfStr))
-                        {
-                            if (double.TryParse(tfStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double parsedTf) ||
-                                double.TryParse(tfStr, NumberStyles.Any, CultureInfo.CurrentCulture, out parsedTf))
-                            {
-                                txFineValue = parsedTf;
-                                backendFineFound = true;
-                            }
-                        }
-                    }
-
-                    if (!backendFineFound)
-                    {
-                        // try penalty sum for this transaction
-                        int txIdForFine = t.Value<int?>("transaction_id") ?? t.Value<int?>("id") ?? 0;
-                        if (txIdForFine != 0 && penaltyFinesByTransaction.TryGetValue(txIdForFine, out var penaltySum) && penaltySum > 0)
-                        {
-                            txFineValue = penaltySum;
-                        }
-                        else
-                        {
-                            // fallback: compute overdue fine from due_date if overdue
                             if (parsedDueDate.HasValue)
                             {
-                                var today = DateTime.Now.Date;
                                 var due = parsedDueDate.Value.Date;
-                                if (today > due)
+
+                                if (today == due)
+                                {
+                                    displayStatus = "Due Today!";
+                                    if (string.IsNullOrEmpty(totalFine))
+                                        totalFine = "0.00";
+                                }
+                                else if (today > due)
                                 {
                                     int overdueDays = (today - due).Days;
+                                    displayStatus = $"Overdue ({overdueDays} days)";
+
                                     double dailyFine = currentUserType.Equals("Student", StringComparison.OrdinalIgnoreCase)
                                         ? _studentDailyFine
                                         : _facultyDailyFine;
-                                    txFineValue = overdueDays * dailyFine;
+
+                                    double computed = overdueDays * dailyFine;
+                                    totalFine = computed.ToString("N2");
                                 }
                                 else
                                 {
-                                    txFineValue = 0.0;
+                                    if (parsedTransactionDate.HasValue)
+                                    {
+                                        var start = parsedTransactionDate.Value.Date;
+                                        if (today >= start && today < due)
+                                        {
+                                            displayStatus = apiStatus;
+                                            if (string.IsNullOrEmpty(totalFine))
+                                                totalFine = "0.00";
+                                        }
+                                        else
+                                        {
+                                            displayStatus = apiStatus;
+                                            if (string.IsNullOrEmpty(totalFine))
+                                                totalFine = "0.00";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        displayStatus = apiStatus;
+                                        if (string.IsNullOrEmpty(totalFine))
+                                            totalFine = "0.00";
+                                    }
                                 }
                             }
                             else
                             {
-                                txFineValue = 0.0;
+                                displayStatus = apiStatus;
+                                if (string.IsNullOrEmpty(totalFine))
+                                    totalFine = "0.00";
                             }
                         }
+                        catch
+                        {
+                            displayStatus = apiStatus;
+                            if (string.IsNullOrEmpty(totalFine))
+                                totalFine = "0.00";
+                        }
+
+                        if (string.IsNullOrEmpty(totalFine))
+                            totalFine = "0.00";
+
+                        // Visible cells in the grid (8 columns expected by the existing UI)
+                        var visibleCells = new object[]
+                        {
+                            type,
+                            title,
+                            authors,
+                            referenceNumber,
+                            transactionDate,
+                            dueDate,
+                            displayStatus,
+                            totalFine
+                        };
+
+                        int? bookId = hasBook ? (int?)t.Value<int?>("book_id") : null;
+                        int? researchId = hasResearch ? (int?)t.Value<int?>("research_paper_id") : null;
+
+                        rows.Add((visibleCells, bookId, researchId, referenceNumber));
                     }
 
-                    string totalFine = txFineValue.ToString("N2"); // format like "0.00" or "35.00"
-
-                    // --- SIMPLE COMBINED DISPLAY (transaction status verbatim + penalty statuses verbatim) ---
-                    // Format: "{transaction_status}  ·  {penalty_statuses|No Penalty}"
-                    string displayStatus = GetTransactionAndPenaltyDisplayStatus((JObject)t, penaltiesByTransaction);
-
-                    // Visible cells in the grid (8 columns expected by the existing UI)
-                    var visibleCells = new object[]
+                    if (transactions_DGV.InvokeRequired)
                     {
-                        type,
-                        title,
-                        authors,
-                        referenceNumber,
-                        transactionDate,
-                        dueDate,
-                        displayStatus,
-                        totalFine
-                    };
-
-                    int? bookId = hasBook ? (int?)t.Value<int?>("book_id") : null;
-                    int? researchId = hasResearch ? (int?)t.Value<int?>("research_paper_id") : null;
-
-                    rows.Add((visibleCells, bookId, researchId, referenceNumber));
-                }
-
-                if (transactions_DGV.InvokeRequired)
-                {
-                    transactions_DGV.Invoke(new Action(() =>
+                        transactions_DGV.Invoke(new Action(() =>
+                        {
+                            PopulateTransactionsGrid(rows);
+                        }));
+                    }
+                    else
                     {
                         PopulateTransactionsGrid(rows);
-                    }));
-                }
-                else
-                {
-                    PopulateTransactionsGrid(rows);
+                    }
                 }
             }
             catch (Exception ex)
@@ -634,30 +596,18 @@ namespace lib_track_kiosk.user_control_forms
                     dgvRow.Cells["book_id_hidden"].Value = r.bookId.HasValue ? r.bookId.Value.ToString() : "";
                     dgvRow.Cells["research_id_hidden"].Value = r.researchId.HasValue ? r.researchId.Value.ToString() : "";
 
-                    // If this row corresponds to any already scanned book, mark it checked — but only if the transaction row is active.
-                    // We avoid marking returned/done/reserved transactions.
-                    string rowStatusString = r.Cells.ElementAtOrDefault(6)?.ToString() ?? "";
-
+                    // If this row corresponds to any already scanned book, mark it checked (only set image; do not change row bg)
                     if (r.bookId.HasValue && scannedBooks.Any(s => s.bookId == r.bookId.Value))
                     {
-                        if (IsStatusActiveString(rowStatusString))
-                        {
-                            dgvRow.Cells["Scanned"].Value = _checkImageFixed;
-                        }
+                        dgvRow.Cells["Scanned"].Value = _checkImageFixed;
                     }
                     else if (!string.IsNullOrEmpty(r.referenceNumber) && scannedBooks.Any(s => !string.IsNullOrEmpty(s.bookNumber) && string.Equals(s.bookNumber.Trim(), r.referenceNumber.Trim(), StringComparison.OrdinalIgnoreCase)))
                     {
-                        if (IsStatusActiveString(rowStatusString))
-                        {
-                            dgvRow.Cells["Scanned"].Value = _checkImageFixed;
-                        }
+                        dgvRow.Cells["Scanned"].Value = _checkImageFixed;
                     }
                     else if (r.researchId.HasValue && scannedResearchPapers.Contains(r.researchId.Value))
                     {
-                        if (IsStatusActiveString(rowStatusString))
-                        {
-                            dgvRow.Cells["Scanned"].Value = _checkImageFixed;
-                        }
+                        dgvRow.Cells["Scanned"].Value = _checkImageFixed;
                     }
                 }
 
@@ -788,8 +738,6 @@ namespace lib_track_kiosk.user_control_forms
                 if (!transactions_DGV.Columns.Contains("Scanned"))
                     return;
 
-                var candidates = new List<DataGridViewRow>();
-
                 foreach (DataGridViewRow row in transactions_DGV.Rows)
                 {
                     // match by hidden book id
@@ -798,8 +746,8 @@ namespace lib_track_kiosk.user_control_forms
                         var cellVal = row.Cells["book_id_hidden"].Value?.ToString();
                         if (!string.IsNullOrEmpty(cellVal) && int.TryParse(cellVal, out int bid) && bid == bookId.Value)
                         {
-                            candidates.Add(row);
-                            continue;
+                            row.Cells["Scanned"].Value = _checkImageFixed;
+                            return;
                         }
                     }
 
@@ -809,8 +757,8 @@ namespace lib_track_kiosk.user_control_forms
                         var cellVal = row.Cells["research_id_hidden"].Value?.ToString();
                         if (!string.IsNullOrEmpty(cellVal) && int.TryParse(cellVal, out int rid) && rid == researchPaperId.Value)
                         {
-                            candidates.Add(row);
-                            continue;
+                            row.Cells["Scanned"].Value = _checkImageFixed;
+                            return;
                         }
                     }
 
@@ -820,19 +768,11 @@ namespace lib_track_kiosk.user_control_forms
                         var rv = row.Cells["ReferenceNumber"].Value?.ToString();
                         if (!string.IsNullOrEmpty(rv) && string.Equals(rv.Trim(), bookNumber.Trim(), StringComparison.OrdinalIgnoreCase))
                         {
-                            candidates.Add(row);
-                            continue;
+                            row.Cells["Scanned"].Value = _checkImageFixed;
+                            return;
                         }
                     }
                 }
-
-                if (candidates.Count == 0)
-                    return;
-
-                // Prefer an active transaction row (not Returned / Done / Reserved). If none active, fall back to first candidate.
-                var chosen = candidates.FirstOrDefault(r => IsRowActiveTransaction(r)) ?? candidates.First();
-
-                chosen.Cells["Scanned"].Value = _checkImageFixed;
             }
             catch (Exception ex)
             {
@@ -861,7 +801,7 @@ namespace lib_track_kiosk.user_control_forms
                 using (var g = Graphics.FromImage(bmp))
                 {
                     g.Clear(Color.Transparent);
-                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
 
                     using (var brush = new SolidBrush(Color.FromArgb(40, 167, 69)))
                     {
@@ -895,7 +835,7 @@ namespace lib_track_kiosk.user_control_forms
                 using (var g = Graphics.FromImage(bmp))
                 {
                     g.Clear(Color.Transparent);
-                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
 
                     // small light gray square background with border
                     using (var brush = new SolidBrush(Color.FromArgb(245, 245, 245)))
@@ -1140,30 +1080,14 @@ namespace lib_track_kiosk.user_control_forms
 
                     MessageBox.Show(sb.ToString(), "Return Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    // Clear scanned lists
+                    // Clear scanned lists and refresh UI
                     scannedBooks.Clear();
                     scannedResearchPapers.Clear();
 
-                    // Refresh transactions and penalty/fine counts (best-effort — safe to call)
+                    // Refresh transactions and penalty/fine counts
                     await RefreshTransactionsAsync();
                     await UpdatePenaltyAndFinesAsync(currentUserId.Value);
                     await UpdateBooksCurrentlyBorrowedAsync(currentUserId.Value);
-
-                    // AFTER SUCCESS: go back to Welcome screen
-                    try
-                    {
-                        MainForm mainForm = (MainForm)this.ParentForm;
-                        if (mainForm != null)
-                        {
-                            UC_Welcome welcomeScreen = new UC_Welcome();
-                            mainForm.addUserControl(welcomeScreen);
-                            return; // stop further processing in this handler
-                        }
-                    }
-                    catch
-                    {
-                        // ignore navigation errors — we've already completed the return
-                    }
                 }
                 else
                 {
@@ -1335,80 +1259,6 @@ namespace lib_track_kiosk.user_control_forms
                 dlg.ShowDialog();
             }
             catch { /* ignore errors showing dialog */ }
-        }
-
-        // Helper: decide if a status string indicates an active (borrowed) transaction.
-        // Treat statuses containing "return", "returned", "done", "reserve" as not-active.
-        private bool IsStatusActiveString(string status)
-        {
-            if (string.IsNullOrWhiteSpace(status))
-                return true; // assume active if unknown (safe default)
-
-            string s = status.ToLowerInvariant();
-            if (s.Contains("return") || s.Contains("returned") || s.Contains("done") || s.Contains("reserve") || s.Contains("reserved"))
-                return false;
-
-            // For statuses like "overdue" or "due today" or "active" or "pending payment" -> treat as active
-            return true;
-        }
-
-        // Helper: decide if a DataGridViewRow represents an active transaction row
-        private bool IsRowActiveTransaction(DataGridViewRow row)
-        {
-            if (row == null) return true;
-            try
-            {
-                if (row.DataGridView.Columns.Contains("Status"))
-                {
-                    var statusObj = row.Cells["Status"].Value;
-                    var statusStr = statusObj?.ToString() ?? "";
-                    return IsStatusActiveString(statusStr);
-                }
-            }
-            catch { /* ignore */ }
-            return true;
-        }
-
-        private string GetTransactionAndPenaltyDisplayStatus(JObject tx, Dictionary<int, List<string>> penaltiesByTransaction)
-        {
-            if (tx == null) return "Unknown  ·  No Penalty";
-
-            // preserve backend-provided transaction status (try several possible keys)
-            string transactionStatus = tx.Value<string>("status")
-                                       ?? tx.Value<string>("transaction_status")
-                                       ?? tx.Value<string>("transaction_type")
-                                       ?? string.Empty;
-
-            transactionStatus = transactionStatus?.Trim();
-            if (string.IsNullOrEmpty(transactionStatus))
-            {
-                // If backend left it empty, show explicit "Unknown" instead of inventing semantics.
-                transactionStatus = "Unknown";
-            }
-
-            // determine transaction id (try common names)
-            int txId = tx.Value<int?>("transaction_id")
-                       ?? tx.Value<int?>("id")
-                       ?? tx.Value<int?>("transactionId")
-                       ?? 0;
-
-            string penaltyPart = "No Penalty";
-            if (txId != 0 && penaltiesByTransaction != null && penaltiesByTransaction.TryGetValue(txId, out var pStatuses) && pStatuses.Count > 0)
-            {
-                // preserve exactly what the backend provided, deduplicate identical strings
-                var distinct = pStatuses.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).Distinct(StringComparer.Ordinal).ToList();
-                if (distinct.Count == 0)
-                {
-                    // fallback: if statuses are empty but penalties exist, show "Unknown"
-                    penaltyPart = "Unknown";
-                }
-                else
-                {
-                    penaltyPart = string.Join(", ", distinct);
-                }
-            }
-
-            return $"{transactionStatus}  ·  {penaltyPart}";
         }
     }
 }

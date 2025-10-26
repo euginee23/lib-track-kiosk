@@ -1,7 +1,28 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "E:\\Library-Tracker\\lib-track-kiosk\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_return.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_return.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\uc_return.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\user_control_forms\\uc_return.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\penaltiesfetcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\helpers\\penaltiesfetcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\transactionfetcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\helpers\\transactionfetcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\getallbooks.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\helpers\\getallbooks.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,11 +30,75 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Bookmark",
               "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "PenaltiesFetcher.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\PenaltiesFetcher.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\helpers\\PenaltiesFetcher.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\PenaltiesFetcher.cs",
+              "RelativeToolTip": "lib-track-kiosk\\helpers\\PenaltiesFetcher.cs",
+              "ViewState": "AgIAABQAAAAAAAAAAAAYwDQAAAAtAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-26T10:58:20.996Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "TransactionFetcher.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\TransactionFetcher.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\helpers\\TransactionFetcher.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\TransactionFetcher.cs",
+              "RelativeToolTip": "lib-track-kiosk\\helpers\\TransactionFetcher.cs",
+              "ViewState": "AgIAADYAAAAAAAAAAAAkwGoAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-26T10:41:53.295Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "GetAllBooks.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\GetAllBooks.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\helpers\\GetAllBooks.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\GetAllBooks.cs",
+              "RelativeToolTip": "lib-track-kiosk\\helpers\\GetAllBooks.cs",
+              "ViewState": "AgIAAI4AAAAAAAAAAAAkwK0AAAAVAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-26T03:23:01.337Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "UC_Return.cs",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Return.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_Return.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Return.cs",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_Return.cs",
+              "ViewState": "AgIAAFwFAAAAAAAAAAAswIUFAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-26T01:28:28.061Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "UC_Return.cs [Design]",
+              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Return.cs",
+              "RelativeDocumentMoniker": "lib-track-kiosk\\user_control_forms\\UC_Return.cs",
+              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\user_control_forms\\UC_Return.cs [Design]",
+              "RelativeToolTip": "lib-track-kiosk\\user_control_forms\\UC_Return.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-26T01:28:04.267Z",
+              "EditorCaption": " [Design]"
             }
           ]
         }

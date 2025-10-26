@@ -1,0 +1,937 @@
+﻿using lib_track_kiosk.helpers;
+using lib_track_kiosk.panel_forms;
+using lib_track_kiosk.sub_forms;
+using lib_track_kiosk.sub_user_controls;
+using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Drawing;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Globalization;
+using System.Linq;
+using System.Drawing.Drawing2D;
+
+namespace lib_track_kiosk.user_control_forms
+{
+    public partial class UC_Return : UserControl
+    {
+        private int? currentUserId;
+
+        // STORAGE FOR SCANNED ITEMS (for return)
+        private List<(int bookId, string bookNumber)> scannedBooks = new List<(int, string)>();
+        private List<int> scannedResearchPapers = new List<int>();
+
+        // Last scan result properties (exposed so other code can read them)
+        public string LastScannedType { get; private set; }
+        public int? LastScannedBookId { get; private set; }
+        public string LastScannedBookNumber { get; private set; }
+        public int? LastScannedResearchPaperId { get; private set; }
+
+        // System settings (fetched from server)
+        private double _studentDailyFine = 5.00;
+        private double _facultyDailyFine = 10.00;
+        private int _studentBorrowDays = 3;
+        private int _facultyBorrowDays = 5;
+
+        // Current user type for applying fines/limits
+        private string currentUserType = "Student";
+
+        // Fixed sized images (X and Check) used in the grid — single shared cache
+        private Image _checkImageFixed;
+        private Image _xImageFixed;
+        private const int IndicatorImageSize = 20; // fixed size in px
+
+        public UC_Return()
+        {
+            InitializeComponent();
+
+            // Configure DataGridView so each column/cell supports multiline text wrapping
+            SetupTransactionsGridAppearance();
+
+            this.Load += UC_Return_Load;
+        }
+
+        // Configure transactions_DGV appearance and basic sizing
+        private void SetupTransactionsGridAppearance()
+        {
+            if (transactions_DGV == null)
+                return;
+
+            transactions_DGV.Dock = DockStyle.Fill;
+            transactions_DGV.Margin = new Padding(8);
+
+            // Wrapping and row sizing
+            transactions_DGV.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            transactions_DGV.RowTemplate.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            transactions_DGV.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            transactions_DGV.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+            transactions_DGV.AllowUserToResizeRows = true;
+
+            // Use Fill for text columns but we will control fill weights; the indicator column will be a fixed width
+            transactions_DGV.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            transactions_DGV.AllowUserToResizeColumns = true;
+
+            // Avoid "highlight everywhere" by keeping selection colors same as background
+            transactions_DGV.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            transactions_DGV.MultiSelect = false;
+            transactions_DGV.DefaultCellStyle.SelectionBackColor = transactions_DGV.DefaultCellStyle.BackColor;
+            transactions_DGV.DefaultCellStyle.SelectionForeColor = transactions_DGV.DefaultCellStyle.ForeColor;
+            transactions_DGV.RowTemplate.DefaultCellStyle.SelectionBackColor = transactions_DGV.RowTemplate.DefaultCellStyle.BackColor;
+            transactions_DGV.RowTemplate.DefaultCellStyle.SelectionForeColor = transactions_DGV.RowTemplate.DefaultCellStyle.ForeColor;
+
+            // header styles
+            transactions_DGV.EnableHeadersVisualStyles = false;
+            transactions_DGV.ColumnHeadersDefaultCellStyle.BackColor = SystemColors.Control;
+            transactions_DGV.ColumnHeadersDefaultCellStyle.ForeColor = SystemColors.ControlText;
+            transactions_DGV.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+
+            // hide row headers and vertical scroll only
+            transactions_DGV.RowHeadersVisible = false;
+            transactions_DGV.ScrollBars = ScrollBars.Vertical;
+
+            // Small visual tweaks
+            transactions_DGV.DefaultCellStyle.Alignment = DataGridViewContentAlignment.TopLeft;
+            transactions_DGV.RowTemplate.DefaultCellStyle.Alignment = DataGridViewContentAlignment.TopLeft;
+
+            // Prepare fixed indicator images now (fixed size, centered later via cell alignment)
+            _checkImageFixed = CreateCheckImage(IndicatorImageSize);
+            _xImageFixed = CreateXImage(IndicatorImageSize);
+
+            // Ensure we will recreate columns when populating
+        }
+
+        // 🔹 Load event — open ScanFingerprint
+        private async void UC_Return_Load(object sender, EventArgs e)
+        {
+            using (var scanFingerprint = new ScanFingerprint())
+            {
+                var result = scanFingerprint.ShowDialog();
+
+                // ❌ Cancel → return to Welcome screen
+                if (result == DialogResult.Cancel)
+                {
+                    MainForm mainForm = (MainForm)this.ParentForm;
+                    if (mainForm != null)
+                    {
+                        UC_Welcome welcomeScreen = new UC_Welcome();
+                        mainForm.addUserControl(welcomeScreen);
+                    }
+                    return;
+                }
+
+                // ✅ Success → get user ID and load info
+                if (result == DialogResult.OK)
+                {
+                    int? userId = scanFingerprint.ScannedUserId;
+                    if (!userId.HasValue)
+                    {
+                        MessageBox.Show("⚠️ No valid user detected.");
+                        return;
+                    }
+
+                    currentUserId = userId;
+                    await FetchAndDisplayUserInformation(userId.Value);
+
+                    // Load system settings (fines / borrow days)
+                    await LoadSystemSettingsAsync();
+
+                    // After loading user info, update penalties/fines and currently borrowed counts and transactions
+                    var (penaltyCount, totalFines) = await UpdatePenaltyAndFinesAsync(userId.Value);
+                    int borrowedCount = await UpdateBooksCurrentlyBorrowedAsync(userId.Value);
+
+                    // Show borrowing limit (from settings)
+                    try
+                    {
+                        string userType = currentUserType ?? "Student";
+                        var (_, _, studentMaxBooks, facultyMaxBooks) = await lib_track_kiosk.configs.SystemSettingsFetcher.GetBorrowingLimitsAsync();
+                        int maxBooks = userType.Equals("Student", StringComparison.OrdinalIgnoreCase) ? studentMaxBooks : facultyMaxBooks;
+                        maxBooksThatCanBorrow_lbl.Text = maxBooks.ToString();
+                    }
+                    catch
+                    {
+                        maxBooksThatCanBorrow_lbl.Text = "N/A";
+                    }
+
+                    // After the counts are visible, load transaction rows
+                    await LoadTransactionsForCurrentUserAsync();
+                }
+            }
+        }
+
+        // 🔹 Fetch user info from API
+        private async Task FetchAndDisplayUserInformation(int userId)
+        {
+            try
+            {
+                var (fullName, email, contactNumber, department, position, yearLevel, profilePhoto, isRestricted)
+                    = await UserFetcher.GetUserInfoAsync(userId);
+
+                fullName_lbl.Text = fullName;
+                email_lbl.Text = email;
+                contactNumber_lbl.Text = contactNumber;
+                department_lbl.Text = department;
+                position_lbl.Text = position;
+                yearLevel_lbl.Text = yearLevel;
+
+                currentUserType = string.IsNullOrWhiteSpace(position) ? "Student" : position;
+
+                if (profilePhoto != null)
+                {
+                    profile_pictureBox.Image = profilePhoto;
+                }
+                else
+                {
+                    profile_pictureBox.ImageLocation = @"E:\Library-Tracker\lib-track-admin\public\avatar-default.png";
+                }
+                profile_pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"🔥 Error fetching user info: {ex.Message}");
+            }
+        }
+
+        // Load system settings (borrow days and fine structure) from backend
+        private async Task LoadSystemSettingsAsync()
+        {
+            try
+            {
+                var (studentBorrowDays, facultyBorrowDays, studentMaxBooks, facultyMaxBooks)
+                    = await lib_track_kiosk.configs.SystemSettingsFetcher.GetBorrowingLimitsAsync();
+
+                var (studentDailyFine, facultyDailyFine) =
+                    await lib_track_kiosk.configs.SystemSettingsFetcher.GetFineStructureAsync();
+
+                _studentBorrowDays = studentBorrowDays;
+                _facultyBorrowDays = facultyBorrowDays;
+                _studentDailyFine = studentDailyFine;
+                _facultyDailyFine = facultyDailyFine;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Warning: failed to load system settings: " + ex.Message);
+            }
+        }
+
+        // 🔹 Exit button — go back to Welcome screen
+        private void exitReturn_btn_Click(object sender, EventArgs e)
+        {
+            MainForm mainForm = (MainForm)this.ParentForm;
+            if (mainForm != null)
+            {
+                UC_Welcome welcomeScreen = new UC_Welcome();
+                mainForm.addUserControl(welcomeScreen);
+            }
+        }
+
+        // helper: check if a book is already scanned by id or book number
+        private bool IsBookAlreadyScanned(int bookId, string bookNumber)
+        {
+            foreach (var (id, number) in scannedBooks)
+            {
+                if (id == bookId)
+                    return true;
+                if (!string.IsNullOrEmpty(bookNumber) && !string.IsNullOrEmpty(number) &&
+                    string.Equals(number.Trim(), bookNumber.Trim(), StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        // helper: check if research paper already scanned
+        private bool IsResearchPaperAlreadyScanned(int researchPaperId)
+        {
+            return scannedResearchPapers.Contains(researchPaperId);
+        }
+
+        // PUBLIC METHOD: open scanner and return the scanned id/type (no panel required)
+        public async Task<(string Type, int? Id)> ScanBookAndGetIdAsync()
+        {
+            using (var scanForm = new ScanBookQR())
+            {
+                var dialogResult = scanForm.ShowDialog();
+
+                if (dialogResult != DialogResult.OK)
+                {
+                    LastScannedType = null;
+                    LastScannedBookId = null;
+                    LastScannedBookNumber = null;
+                    LastScannedResearchPaperId = null;
+                    return (null, null);
+                }
+
+                var scannedType = scanForm.ScannedType;
+                if (string.Equals(scannedType, "Book", StringComparison.OrdinalIgnoreCase)
+                    && scanForm.ScannedBookId.HasValue)
+                {
+                    LastScannedType = "Book";
+                    LastScannedBookId = scanForm.ScannedBookId;
+                    LastScannedBookNumber = scanForm.ScannedBookNumber;
+                    LastScannedResearchPaperId = null;
+                    return ("Book", LastScannedBookId);
+                }
+                else if (string.Equals(scannedType, "Research Paper", StringComparison.OrdinalIgnoreCase)
+                         && scanForm.ScannedResearchPaperId.HasValue)
+                {
+                    LastScannedType = "Research Paper";
+                    LastScannedResearchPaperId = scanForm.ScannedResearchPaperId;
+                    LastScannedBookId = null;
+                    LastScannedBookNumber = null;
+                    return ("Research Paper", LastScannedResearchPaperId);
+                }
+                else
+                {
+                    LastScannedType = scannedType;
+                    LastScannedBookId = null;
+                    LastScannedBookNumber = null;
+                    LastScannedResearchPaperId = null;
+                    return (scannedType, null);
+                }
+            }
+        }
+
+        // SCAN BOOK BUTTON CLICK EVENT
+        private async void scanBook_btn_Click(object sender, EventArgs e)
+        {
+            var (type, id) = await ScanBookAndGetIdAsync();
+
+            if (string.IsNullOrEmpty(type))
+            {
+                MessageBox.Show("Scan canceled or no valid item scanned.");
+                return;
+            }
+
+            if (type == "Book")
+            {
+                MessageBox.Show($"Scanned Book ID: {id}");
+                if (id.HasValue)
+                {
+                    // Prevent adding if the transaction containing this book is already returned/done
+                    bool isReturned = IsTransactionReturnedForIdentifiers(id.Value, LastScannedBookNumber, null);
+                    if (isReturned)
+                    {
+                        MessageBox.Show("This transaction is already returned and cannot be selected.", "Already Returned", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else if (!IsBookAlreadyScanned(id.Value, LastScannedBookNumber))
+                    {
+                        scannedBooks.Add((id.Value, LastScannedBookNumber));
+                        // Mark matching transaction row as scanned (check the right-side column)
+                        MarkTransactionRowAsScanned(id.Value, LastScannedBookNumber);
+                    }
+                }
+            }
+            else if (type == "Research Paper")
+            {
+                MessageBox.Show($"Scanned Research Paper ID: {id}");
+                if (id.HasValue)
+                {
+                    bool isReturned = IsTransactionReturnedForIdentifiers(null, null, id.Value);
+                    if (isReturned)
+                    {
+                        MessageBox.Show("This transaction is already returned and cannot be selected.", "Already Returned", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else if (!IsResearchPaperAlreadyScanned(id.Value))
+                    {
+                        scannedResearchPapers.Add(id.Value);
+                        // Mark research row if present
+                        MarkTransactionRowAsScanned(null, null, researchPaperId: id.Value);
+                    }
+                }
+            }
+            else
+            {
+                MessageBox.Show($"Unknown scan type: {type}");
+            }
+
+            await Task.CompletedTask;
+        }
+
+        // ---------- Load transactions for the current user and populate transactions_DGV ----------
+        // This uses the endpoint GET /api/transactions/user/:user_id
+        private async Task LoadTransactionsForCurrentUserAsync()
+        {
+            if (!currentUserId.HasValue)
+                return;
+
+            string url = $"{lib_track_kiosk.configs.API_Backend.BaseUrl}/api/transactions/user/{currentUserId.Value}";
+
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    var resp = await client.GetAsync(url);
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        MessageBox.Show($"❌ Failed to fetch transactions: {resp.ReasonPhrase}");
+                        return;
+                    }
+
+                    var content = await resp.Content.ReadAsStringAsync();
+                    JObject root;
+                    try
+                    {
+                        root = JObject.Parse(content);
+                    }
+                    catch
+                    {
+                        MessageBox.Show("❌ Invalid JSON received from transactions endpoint.");
+                        return;
+                    }
+
+                    if (!root.TryGetValue("success", out var successToken) || successToken.Type != JTokenType.Boolean || !successToken.Value<bool>())
+                    {
+                        string msg = root.TryGetValue("message", out var m) ? m.ToString() : "Unknown error fetching transactions";
+                        MessageBox.Show($"⚠️ Transactions API returned error: {msg}");
+                        return;
+                    }
+
+                    var data = root["data"] as JArray;
+                    if (data == null)
+                    {
+                        MessageBox.Show("⚠️ Transactions API returned no data.");
+                        return;
+                    }
+
+                    // Build rows to add. We keep the visible columns same as before, but also capture book_id/research_paper_id for mapping.
+                    var rows = new List<(object[] Cells, int? bookId, int? researchId, string referenceNumber)>();
+
+                    foreach (var t in data)
+                    {
+                        bool hasBook = t["book_id"] != null && t["book_id"].Type != JTokenType.Null;
+                        bool hasResearch = t["research_paper_id"] != null && t["research_paper_id"].Type != JTokenType.Null;
+
+                        string type = hasBook ? "Book" : hasResearch ? "Research Paper" : "Unknown";
+
+                        string title = t.Value<string>("book_title")
+                                       ?? t.Value<string>("research_title")
+                                       ?? t.Value<string>("title")
+                                       ?? "";
+
+                        string authors = t.Value<string>("book_authors")
+                                         ?? t.Value<string>("research_authors")
+                                         ?? t.Value<string>("authors")
+                                         ?? "";
+
+                        if (string.IsNullOrWhiteSpace(authors))
+                        {
+                            var fn = t.Value<string>("first_name") ?? "";
+                            var ln = t.Value<string>("last_name") ?? "";
+                            var combined = (fn + " " + ln).Trim();
+                            if (!string.IsNullOrEmpty(combined))
+                                authors = combined;
+                        }
+
+                        string referenceNumber = t["reference_number"]?.ToString()
+                                                 ?? t["referenceNumber"]?.ToString()
+                                                 ?? t["book_number"]?.ToString()
+                                                 ?? t["bookNumber"]?.ToString()
+                                                 ?? "";
+
+                        DateTime? parsedDueDate = null;
+                        DateTime? parsedTransactionDate = null;
+                        string transactionDate = "";
+                        string dueDate = "";
+
+                        var td = t["transaction_date"];
+                        if (td != null && td.Type != JTokenType.Null)
+                        {
+                            if (DateTime.TryParse(td.ToString(), out var parsedTd))
+                            {
+                                parsedTransactionDate = parsedTd;
+                                transactionDate = parsedTd.ToString("yyyy-MM-dd HH:mm");
+                            }
+                            else
+                                transactionDate = td.ToString();
+                        }
+
+                        var dd = t["due_date"];
+                        if (dd != null && dd.Type != JTokenType.Null)
+                        {
+                            if (DateTime.TryParse(dd.ToString(), out var parsedDd))
+                            {
+                                dueDate = parsedDd.ToString("yyyy-MM-dd");
+                                parsedDueDate = parsedDd;
+                            }
+                            else
+                                dueDate = dd.ToString();
+                        }
+
+                        string apiStatus = t.Value<string>("status") ?? t.Value<string>("transaction_type") ?? "";
+
+                        string totalFine = null;
+                        if (t["total_fine"] != null && t["total_fine"].Type != JTokenType.Null)
+                            totalFine = $"{t.Value<decimal?>("total_fine")?.ToString("N2") ?? "0.00"}";
+                        else if (t["fine_amount"] != null && t["fine_amount"].Type != JTokenType.Null)
+                            totalFine = $"{t.Value<decimal?>("fine_amount")?.ToString("N2") ?? "0.00"}";
+                        else if (t["totalFine"] != null && t["totalFine"].Type != JTokenType.Null)
+                            totalFine = $"{t.Value<decimal?>("totalFine")?.ToString("N2") ?? "0.00"}";
+
+                        string displayStatus = apiStatus;
+                        try
+                        {
+                            var today = DateTime.Now.Date;
+
+                            if (parsedDueDate.HasValue)
+                            {
+                                var due = parsedDueDate.Value.Date;
+
+                                if (today == due)
+                                {
+                                    displayStatus = "Due Today!";
+                                    if (string.IsNullOrEmpty(totalFine))
+                                        totalFine = "0.00";
+                                }
+                                else if (today > due)
+                                {
+                                    int overdueDays = (today - due).Days;
+                                    displayStatus = $"Overdue ({overdueDays} days)";
+
+                                    double dailyFine = currentUserType.Equals("Student", StringComparison.OrdinalIgnoreCase)
+                                        ? _studentDailyFine
+                                        : _facultyDailyFine;
+
+                                    double computed = overdueDays * dailyFine;
+                                    totalFine = computed.ToString("N2");
+                                }
+                                else
+                                {
+                                    if (parsedTransactionDate.HasValue)
+                                    {
+                                        var start = parsedTransactionDate.Value.Date;
+                                        if (today >= start && today < due)
+                                        {
+                                            displayStatus = apiStatus;
+                                            if (string.IsNullOrEmpty(totalFine))
+                                                totalFine = "0.00";
+                                        }
+                                        else
+                                        {
+                                            displayStatus = apiStatus;
+                                            if (string.IsNullOrEmpty(totalFine))
+                                                totalFine = "0.00";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        displayStatus = apiStatus;
+                                        if (string.IsNullOrEmpty(totalFine))
+                                            totalFine = "0.00";
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                displayStatus = apiStatus;
+                                if (string.IsNullOrEmpty(totalFine))
+                                    totalFine = "0.00";
+                            }
+                        }
+                        catch
+                        {
+                            displayStatus = apiStatus;
+                            if (string.IsNullOrEmpty(totalFine))
+                                totalFine = "0.00";
+                        }
+
+                        if (string.IsNullOrEmpty(totalFine))
+                            totalFine = "0.00";
+
+                        // Visible cells in the grid (8 columns expected by the existing UI)
+                        var visibleCells = new object[]
+                        {
+                            type,
+                            title,
+                            authors,
+                            referenceNumber,
+                            transactionDate,
+                            dueDate,
+                            displayStatus,
+                            totalFine
+                        };
+
+                        int? bookId = hasBook ? (int?)t.Value<int?>("book_id") : null;
+                        int? researchId = hasResearch ? (int?)t.Value<int?>("research_paper_id") : null;
+
+                        rows.Add((visibleCells, bookId, researchId, referenceNumber));
+                    }
+
+                    if (transactions_DGV.InvokeRequired)
+                    {
+                        transactions_DGV.Invoke(new Action(() =>
+                        {
+                            PopulateTransactionsGrid(rows);
+                        }));
+                    }
+                    else
+                    {
+                        PopulateTransactionsGrid(rows);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"🔥 Error loading transactions: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Populates the transactions DataGridView.
+        /// Creates columns with proper FillWeight and a small image column for scanned indicator that fits the grid.
+        /// </summary>
+        private void PopulateTransactionsGrid(List<(object[] Cells, int? bookId, int? researchId, string referenceNumber)> rows)
+        {
+            try
+            {
+                transactions_DGV.SuspendLayout();
+                transactions_DGV.Rows.Clear();
+
+                // Recreate columns to ensure consistent column order and sizing.
+                SetupColumnsForTransactionsGrid();
+
+                // Add rows and populate hidden id columns
+                foreach (var r in rows)
+                {
+                    int newIndex = transactions_DGV.Rows.Add();
+                    var dgvRow = transactions_DGV.Rows[newIndex];
+
+                    // assign visible values by column name to avoid position issues
+                    SetCellValueSafe(dgvRow, "Type", r.Cells.ElementAtOrDefault(0));
+                    SetCellValueSafe(dgvRow, "Title", r.Cells.ElementAtOrDefault(1));
+                    SetCellValueSafe(dgvRow, "Authors", r.Cells.ElementAtOrDefault(2));
+                    SetCellValueSafe(dgvRow, "ReferenceNumber", r.Cells.ElementAtOrDefault(3));
+                    SetCellValueSafe(dgvRow, "TransactionDate", r.Cells.ElementAtOrDefault(4));
+                    SetCellValueSafe(dgvRow, "DueDate", r.Cells.ElementAtOrDefault(5));
+                    SetCellValueSafe(dgvRow, "Status", r.Cells.ElementAtOrDefault(6));
+                    SetCellValueSafe(dgvRow, "TotalFine", r.Cells.ElementAtOrDefault(7));
+
+                    // default unscanned indicator = X (fixed size)
+                    dgvRow.Cells["Scanned"].Value = _xImageFixed;
+
+                    // Put ids into hidden columns
+                    dgvRow.Cells["book_id_hidden"].Value = r.bookId.HasValue ? r.bookId.Value.ToString() : "";
+                    dgvRow.Cells["research_id_hidden"].Value = r.researchId.HasValue ? r.researchId.Value.ToString() : "";
+
+                    // If this row corresponds to any already scanned book, mark it checked (only set image; do not change row bg)
+                    if (r.bookId.HasValue && scannedBooks.Any(s => s.bookId == r.bookId.Value))
+                    {
+                        dgvRow.Cells["Scanned"].Value = _checkImageFixed;
+                    }
+                    else if (!string.IsNullOrEmpty(r.referenceNumber) && scannedBooks.Any(s => !string.IsNullOrEmpty(s.bookNumber) && string.Equals(s.bookNumber.Trim(), r.referenceNumber.Trim(), StringComparison.OrdinalIgnoreCase)))
+                    {
+                        dgvRow.Cells["Scanned"].Value = _checkImageFixed;
+                    }
+                    else if (r.researchId.HasValue && scannedResearchPapers.Contains(r.researchId.Value))
+                    {
+                        dgvRow.Cells["Scanned"].Value = _checkImageFixed;
+                    }
+                }
+
+                // After adding rows, auto-resize row heights to fit wrapped content
+                transactions_DGV.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+
+                // Ensure the indicator column retains fixed width and the image stays centered
+                if (transactions_DGV.Columns.Contains("Scanned"))
+                {
+                    var col = transactions_DGV.Columns["Scanned"];
+                    col.Width = IndicatorImageSize + 12; // padding
+                    col.MinimumWidth = IndicatorImageSize + 8;
+                    col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                    col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                }
+
+                transactions_DGV.ResumeLayout();
+
+                // Optional: set a reasonable minimum row height
+                int minHeight = 28;
+                foreach (DataGridViewRow rr in transactions_DGV.Rows)
+                {
+                    if (rr.Height < minHeight)
+                        rr.Height = minHeight;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"⚠️ Error populating transactions grid: {ex.Message}");
+            }
+        }
+
+        // Ensure grid has the desired columns and fill weights so Scanned icon remains visible.
+        private void SetupColumnsForTransactionsGrid()
+        {
+            // Recreate columns to ensure consistent layout
+            transactions_DGV.Columns.Clear();
+
+            // Type
+            var typeCol = new DataGridViewTextBoxColumn { Name = "Type", HeaderText = "Type", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 8 };
+            transactions_DGV.Columns.Add(typeCol);
+
+            // Title - give most space
+            var titleCol = new DataGridViewTextBoxColumn { Name = "Title", HeaderText = "Title", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 30 };
+            transactions_DGV.Columns.Add(titleCol);
+
+            // Authors
+            var authorsCol = new DataGridViewTextBoxColumn { Name = "Authors", HeaderText = "Author(s)", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 18 };
+            transactions_DGV.Columns.Add(authorsCol);
+
+            // Reference Number
+            var refCol = new DataGridViewTextBoxColumn { Name = "ReferenceNumber", HeaderText = "Reference Number", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 12 };
+            transactions_DGV.Columns.Add(refCol);
+
+            // Transaction Date
+            var txDateCol = new DataGridViewTextBoxColumn { Name = "TransactionDate", HeaderText = "Transaction Date", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 10 };
+            transactions_DGV.Columns.Add(txDateCol);
+
+            // Due Date
+            var dueDateCol = new DataGridViewTextBoxColumn { Name = "DueDate", HeaderText = "Due Date", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 10 };
+            transactions_DGV.Columns.Add(dueDateCol);
+
+            // Status
+            var statusCol = new DataGridViewTextBoxColumn { Name = "Status", HeaderText = "Status", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 10 };
+            transactions_DGV.Columns.Add(statusCol);
+
+            // Total Fine
+            var fineCol = new DataGridViewTextBoxColumn { Name = "TotalFine", HeaderText = "Total Fine", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 6 };
+            transactions_DGV.Columns.Add(fineCol);
+
+            // Scanned image column (small fixed width)
+            var imgCol = new DataGridViewImageColumn
+            {
+                Name = "Scanned",
+                HeaderText = "",
+                ImageLayout = DataGridViewImageCellLayout.Normal,
+                ReadOnly = true
+            };
+            transactions_DGV.Columns.Add(imgCol);
+
+            // Hidden id columns for mapping (not visible)
+            var idCol = new DataGridViewTextBoxColumn { Name = "book_id_hidden", HeaderText = "book_id_hidden", Visible = false };
+            transactions_DGV.Columns.Add(idCol);
+            var rCol = new DataGridViewTextBoxColumn { Name = "research_id_hidden", HeaderText = "research_id_hidden", Visible = false };
+            transactions_DGV.Columns.Add(rCol);
+
+            // Column styles
+            foreach (DataGridViewColumn col in transactions_DGV.Columns)
+            {
+                col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+                col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.TopLeft;
+            }
+
+            // Make sure the Scanned column alignment is center so our fixed image is centered
+            try
+            {
+                transactions_DGV.Columns["Scanned"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                transactions_DGV.Columns["Scanned"].Width = IndicatorImageSize + 12;
+                transactions_DGV.Columns["Scanned"].MinimumWidth = IndicatorImageSize + 8;
+                transactions_DGV.Columns["Scanned"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+            }
+            catch { }
+        }
+
+        // Safe helper to set a cell value by column name if present
+        private void SetCellValueSafe(DataGridViewRow row, string columnName, object value)
+        {
+            if (row == null || row.DataGridView == null) return;
+            if (!row.DataGridView.Columns.Contains(columnName)) return;
+            row.Cells[columnName].Value = value;
+            // Ensure wrap for text columns
+            row.Cells[columnName].Style.WrapMode = DataGridViewTriState.True;
+            row.Cells[columnName].Style.Alignment = DataGridViewContentAlignment.TopLeft;
+        }
+
+        // Mark a transaction row as scanned by matching bookId, bookNumber or researchPaperId
+        // This only sets the image in the Scanned cell (no row background changes)
+        private void MarkTransactionRowAsScanned(int? bookId, string bookNumber = null, int? researchPaperId = null)
+        {
+            try
+            {
+                if (transactions_DGV.InvokeRequired)
+                {
+                    transactions_DGV.Invoke(new Action(() => MarkTransactionRowAsScanned(bookId, bookNumber, researchPaperId)));
+                    return;
+                }
+
+                if (!transactions_DGV.Columns.Contains("Scanned"))
+                    return;
+
+                foreach (DataGridViewRow row in transactions_DGV.Rows)
+                {
+                    // skip rows that are returned/done
+                    if (IsTransactionReturnedInRow(row))
+                        continue;
+
+                    // match by hidden book id
+                    if (bookId.HasValue && transactions_DGV.Columns.Contains("book_id_hidden"))
+                    {
+                        var cellVal = row.Cells["book_id_hidden"].Value?.ToString();
+                        if (!string.IsNullOrEmpty(cellVal) && int.TryParse(cellVal, out int bid) && bid == bookId.Value)
+                        {
+                            row.Cells["Scanned"].Value = _checkImageFixed;
+                            return;
+                        }
+                    }
+
+                    // match by hidden research id
+                    if (researchPaperId.HasValue && transactions_DGV.Columns.Contains("research_id_hidden"))
+                    {
+                        var cellVal = row.Cells["research_id_hidden"].Value?.ToString();
+                        if (!string.IsNullOrEmpty(cellVal) && int.TryParse(cellVal, out int rid) && rid == researchPaperId.Value)
+                        {
+                            row.Cells["Scanned"].Value = _checkImageFixed;
+                            return;
+                        }
+                    }
+
+                    // match by reference/book number cell (visible column ReferenceNumber)
+                    if (!string.IsNullOrEmpty(bookNumber) && transactions_DGV.Columns.Contains("ReferenceNumber"))
+                    {
+                        var rv = row.Cells["ReferenceNumber"].Value?.ToString();
+                        if (!string.IsNullOrEmpty(rv) && string.Equals(rv.Trim(), bookNumber.Trim(), StringComparison.OrdinalIgnoreCase))
+                        {
+                            row.Cells["Scanned"].Value = _checkImageFixed;
+                            return;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error marking transaction row as scanned: {ex}");
+            }
+        }
+
+        // Helper: determine if a DataGridViewRow is for a returned/done transaction
+        private bool IsTransactionReturnedInRow(DataGridViewRow row)
+        {
+            try
+            {
+                if (row == null) return false;
+                if (!transactions_DGV.Columns.Contains("Status")) return false;
+                var statusObj = row.Cells["Status"]?.Value?.ToString() ?? string.Empty;
+                if (string.IsNullOrEmpty(statusObj)) return false;
+                var s = statusObj.Trim().ToLowerInvariant();
+                return s.Contains("returned") || s.Equals("done");
+            }
+            catch { return false; }
+        }
+
+        // Helper: check if transaction for identifiers is returned (search grid rows)
+        private bool IsTransactionReturnedForIdentifiers(int? bookId, string bookNumber = null, int? researchPaperId = null)
+        {
+            try
+            {
+                if (transactions_DGV == null) return false;
+                foreach (DataGridViewRow row in transactions_DGV.Rows)
+                {
+                    // match by hidden ids
+                    if (bookId.HasValue && transactions_DGV.Columns.Contains("book_id_hidden"))
+                    {
+                        var cellVal = row.Cells["book_id_hidden"].Value?.ToString();
+                        if (!string.IsNullOrEmpty(cellVal) && int.TryParse(cellVal, out int bid) && bid == bookId.Value)
+                        {
+                            return IsTransactionReturnedInRow(row);
+                        }
+                    }
+
+                    if (researchPaperId.HasValue && transactions_DGV.Columns.Contains("research_id_hidden"))
+                    {
+                        var cellVal = row.Cells["research_id_hidden"].Value?.ToString();
+                        if (!string.IsNullOrEmpty(cellVal) && int.TryParse(cellVal, out int rid) && rid == researchPaperId.Value)
+                        {
+                            return IsTransactionReturnedInRow(row);
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(bookNumber) && transactions_DGV.Columns.Contains("ReferenceNumber"))
+                    {
+                        var rv = row.Cells["ReferenceNumber"].Value?.ToString();
+                        if (!string.IsNullOrEmpty(rv) && string.Equals(rv.Trim(), bookNumber.Trim(), StringComparison.OrdinalIgnoreCase))
+                        {
+                            return IsTransactionReturnedInRow(row);
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return false;
+        }
+
+        // -------- image creation utilities (fixed-size assets) --------
+
+        // Create fixed-size check icon (green circle + white check)
+        private Image CreateCheckImage(int px)
+        {
+            try
+            {
+                int s = Math.Max(IndicatorImageSize, px);
+                var bmp = new Bitmap(s, s);
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.Clear(Color.Transparent);
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                    using (var brush = new SolidBrush(Color.FromArgb(40, 167, 69)))
+                    {
+                        g.FillEllipse(brush, 0, 0, s - 1, s - 1);
+                    }
+
+                    using (var pen = new Pen(Color.White, Math.Max(1f, s * 0.08f)))
+                    {
+                        pen.StartCap = LineCap.Round;
+                        pen.EndCap = LineCap.Round;
+                        var p1 = new PointF(s * 0.22f, s * 0.55f);
+                        var p2 = new PointF(s * 0.45f, s * 0.78f);
+                        var p3 = new PointF(s * 0.82f, s * 0.28f);
+                        g.DrawLines(pen, new[] { p1, p2, p3 });
+                    }
+                }
+                return bmp;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // Create fixed-size X icon (gray box with X)
+        private Image CreateXImage(int px)
+        {
+            try
+            {
+                int s = Math.Max(IndicatorImageSize, px);
+                var bmp = new Bitmap(s, s);
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.Clear(Color.Transparent);
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                    // small light gray square background with border
+                    using (var brush = new SolidBrush(Color.FromArgb(245, 245, 245)))
+                    {
+                        g.FillRectangle(brush, 0, 0, s - 1, s - 1);
+                    }
+                    using (var pen = new Pen(Color.FromArgb(180, 180, 180), Math.Max(1f, s * 0.05f)))
+                    {
+                        g.DrawRectangle(pen, 0, 0, s - 1, s - 1);
+                    }
+
+                    // draw X
+                    using (var pen = new Pen(Color.FromArgb(120, 120, 120), Math.Max(1f, s * 0.10f)))
+                    {
+                        pen.StartCap = LineCap.Round;
+                        pen.EndCap = LineCap.Round;
+                        g.DrawLine(pen, s * 0.2f, s * 0.2f, s * 0.8f, s * 0.8f);
+                        g.DrawLine(pen, s * 0.8f, s * 0.2f, s * 0.2f, s * 0.8f);
+                    }
+                }
+                return bmp;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // ...rest of existing code...
