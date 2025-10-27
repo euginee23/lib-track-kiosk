@@ -10,20 +10,47 @@ namespace lib_track_kiosk.helpers
 {
     public class BookInfo
     {
+        // Core identity
         public int BookId { get; set; }
         public string BookNumber { get; set; }
+
+        // Descriptive
         public string Title { get; set; }
         public string Author { get; set; }
         public string Publisher { get; set; }
-        public string ShelfLocation { get; set; }
         public string Year { get; set; }
         public string Edition { get; set; }
         public string Price { get; set; }
         public string Donor { get; set; }
         public string Status { get; set; }
-        public int AvailableCopies { get; set; }
-        public Image CoverImage { get; set; }
+
+        // Location / batch
+        public string ShelfLocation { get; set; }
         public string BatchRegistrationKey { get; set; }
+
+        // Images / UI
+        public Image CoverImage { get; set; }
+
+        // Runtime-calculated
+        public int AvailableCopies { get; set; }
+
+        // Genre / department mapping (to support backend route that returns either a genre or a department)
+        // - IsUsingDepartment: true when the backend used department as the "genre" for this book
+        // - Genre: generic display string (either genre or department name from the route)
+        // - BookGenre: the actual book genre (when not using department)
+        // - DepartmentName: the department name (when using department)
+        // - GenreId: numeric id (book_genre_id OR department_id depending on isUsingDepartment)
+        public bool IsUsingDepartment { get; set; }
+        public string Genre { get; set; }
+        public string BookGenre { get; set; }
+        public string DepartmentName { get; set; }
+        public int GenreId { get; set; }
+
+        // Optional: convenience ToString or helper methods can be added here
+        public override string ToString()
+        {
+            return $"{Title} — {Author} ({Year})";
+        }
     }
 
     public static class BookFetcher

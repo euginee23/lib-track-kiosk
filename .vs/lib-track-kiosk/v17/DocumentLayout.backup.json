@@ -3,40 +3,12 @@
   "WorkspaceRootPath": "E:\\Library-Tracker\\lib-track-kiosk\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\uc_lookresearchpapers.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\sub_user_controls\\uc_lookresearchpapers.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\uc_lookresearchpapers.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
-      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\sub_user_controls\\uc_lookresearchpapers.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\models\\researchpapers.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\models\\researchpapers.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\getallresearchpapers.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\helpers\\getallresearchpapers.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\getallbooks.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\helpers\\getallbooks.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\uc_lookbooks.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
       "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\sub_user_controls\\uc_lookbooks.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
     },
     {
       "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\uc_lookbooks.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\sub_user_controls\\uc_lookbooks.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\loading_forms\\loading.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
-      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\loading_forms\\loading.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|e:\\library-tracker\\lib-track-kiosk\\lib-track-kiosk\\loading_forms\\loading.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{698BA4FC-1986-49E9-8C5F-3D0C385AB618}|lib-track-kiosk\\lib-track-kiosk.csproj|solutionrelative:lib-track-kiosk\\loading_forms\\loading.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -54,116 +26,27 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "ResearchPapers.cs",
-              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\models\\ResearchPapers.cs",
-              "RelativeDocumentMoniker": "lib-track-kiosk\\models\\ResearchPapers.cs",
-              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\models\\ResearchPapers.cs",
-              "RelativeToolTip": "lib-track-kiosk\\models\\ResearchPapers.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-27T00:01:03.229Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "UC_LookResearchPapers.cs",
-              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\UC_LookResearchPapers.cs",
-              "RelativeDocumentMoniker": "lib-track-kiosk\\sub_user_controls\\UC_LookResearchPapers.cs",
-              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\UC_LookResearchPapers.cs",
-              "RelativeToolTip": "lib-track-kiosk\\sub_user_controls\\UC_LookResearchPapers.cs",
-              "ViewState": "AgIAAHsAAAAAAAAAAAAAAIwAAAAtAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-26T23:39:32.102Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "UC_LookResearchPapers.cs [Design]",
-              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\UC_LookResearchPapers.cs",
-              "RelativeDocumentMoniker": "lib-track-kiosk\\sub_user_controls\\UC_LookResearchPapers.cs",
-              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\UC_LookResearchPapers.cs [Design]",
-              "RelativeToolTip": "lib-track-kiosk\\sub_user_controls\\UC_LookResearchPapers.cs [Design]",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-26T23:39:30.132Z",
-              "EditorCaption": " [Design]"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "GetAllBooks.cs",
-              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\GetAllBooks.cs",
-              "RelativeDocumentMoniker": "lib-track-kiosk\\helpers\\GetAllBooks.cs",
-              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\GetAllBooks.cs",
-              "RelativeToolTip": "lib-track-kiosk\\helpers\\GetAllBooks.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABsAAAAxAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-26T23:36:43.238Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "GetAllResearchPapers.cs",
-              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\GetAllResearchPapers.cs",
-              "RelativeDocumentMoniker": "lib-track-kiosk\\helpers\\GetAllResearchPapers.cs",
-              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\helpers\\GetAllResearchPapers.cs",
-              "RelativeToolTip": "lib-track-kiosk\\helpers\\GetAllResearchPapers.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB0AAAAPAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-26T23:36:40.506Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "Loading.cs",
-              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\loading_forms\\Loading.cs",
-              "RelativeDocumentMoniker": "lib-track-kiosk\\loading_forms\\Loading.cs",
-              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\loading_forms\\Loading.cs",
-              "RelativeToolTip": "lib-track-kiosk\\loading_forms\\Loading.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-26T20:23:23.98Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "Loading.cs [Design]",
-              "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\loading_forms\\Loading.cs",
-              "RelativeDocumentMoniker": "lib-track-kiosk\\loading_forms\\Loading.cs",
-              "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\loading_forms\\Loading.cs [Design]",
-              "RelativeToolTip": "lib-track-kiosk\\loading_forms\\Loading.cs [Design]",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-26T20:23:22.453Z",
-              "EditorCaption": " [Design]"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
               "Title": "UC_LookBooks.cs",
               "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\UC_LookBooks.cs",
               "RelativeDocumentMoniker": "lib-track-kiosk\\sub_user_controls\\UC_LookBooks.cs",
               "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\UC_LookBooks.cs",
               "RelativeToolTip": "lib-track-kiosk\\sub_user_controls\\UC_LookBooks.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAALcBAAABAAAAAAAAAA==",
+              "ViewState": "AgIAAFkDAAAAAAAAAAAiwIsDAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-26T20:22:34.062Z",
+              "WhenOpened": "2025-10-27T01:19:39.214Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 0,
               "Title": "UC_LookBooks.cs [Design]",
               "DocumentMoniker": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\UC_LookBooks.cs",
               "RelativeDocumentMoniker": "lib-track-kiosk\\sub_user_controls\\UC_LookBooks.cs",
               "ToolTip": "E:\\Library-Tracker\\lib-track-kiosk\\lib-track-kiosk\\sub_user_controls\\UC_LookBooks.cs [Design]",
               "RelativeToolTip": "lib-track-kiosk\\sub_user_controls\\UC_LookBooks.cs [Design]",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-26T20:22:31.45Z",
+              "WhenOpened": "2025-10-27T00:21:38.07Z",
               "EditorCaption": " [Design]"
             }
           ]

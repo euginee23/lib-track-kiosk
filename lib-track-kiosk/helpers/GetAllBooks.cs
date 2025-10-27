@@ -17,6 +17,7 @@ namespace lib_track_kiosk.helpers
         /// <summary>
         /// Fetches all books from the backend and returns a list of BookInfo objects.
         /// For each book, attempts to decode the cover image and load available copies (when batch key is present).
+        /// Also maps genre/department fields and the isUsingDepartment flag returned by the API so the UI can filter by either genre or department.
         /// </summary>
         public static async Task<List<BookInfo>> GetAllAsync()
         {
@@ -62,8 +63,48 @@ namespace lib_track_kiosk.helpers
                             Price = bookObj["book_price"]?.ToString() ?? "N/A",
                             Donor = bookObj["book_donor"]?.ToString() ?? "N/A",
                             Status = bookObj["status"]?.ToString() ?? "N/A",
-                            BatchRegistrationKey = bookObj["batch_registration_key"]?.ToString()
+                            BatchRegistrationKey = bookObj["batch_registration_key"]?.ToString(),
+                            // keep previous mapping of available copies blank for now (we may replace after fetching batch info)
+                            AvailableCopies = 0
                         };
+
+                        // Map isUsingDepartment / genre / genre_id returned by the API.
+                        // The backend route aliases the column "genre" to either the department_name or the book_genre depending on isUsingDepartment.
+                        try
+                        {
+                            // parse isUsingDepartment safely (could be 0/1, boolean, or string)
+                            var isUsingDeptToken = bookObj["isUsingDepartment"] ?? bookObj["is_using_department"];
+                            bool isUsingDept = false;
+                            if (isUsingDeptToken != null)
+                            {
+                                if (isUsingDeptToken.Type == JTokenType.Boolean)
+                                    isUsingDept = (bool)isUsingDeptToken;
+                                else if (isUsingDeptToken.Type == JTokenType.Integer)
+                                    isUsingDept = ((int)isUsingDeptToken) == 1;
+                                else
+                                {
+                                    bool.TryParse(isUsingDeptToken.ToString(), out isUsingDept);
+                                    if (!isUsingDept && int.TryParse(isUsingDeptToken.ToString(), out var vi))
+                                        isUsingDept = vi == 1;
+                                }
+                            }
+                            book.IsUsingDepartment = isUsingDept;
+
+                            // genre alias from route (contains book_genre OR department_name depending on isUsingDepartment)
+                            var genreVal = bookObj["genre"]?.ToString();
+                            if (!string.IsNullOrWhiteSpace(genreVal))
+                            {
+                                // populate both Genre (generic) and specific DepartmentName / BookGenre fields to make reflection-based lookups in the UI succeed
+                                book.Genre = genreVal;
+                                if (isUsingDept)
+                                    book.DepartmentName = genreVal;
+                                else
+                                    book.BookGenre = genreVal;
+                            }
+
+                            book.GenreId = (int?)(bookObj["genre_id"]) ?? 0;
+                        }
+                        catch { /* ignore mapping errors but continue */ }
 
                         // Decode cover image (if present)
                         book.CoverImage = DecodeImage(bookObj["book_cover"]);
