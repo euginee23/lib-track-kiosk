@@ -2,17 +2,25 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Net.Http;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using lib_track_kiosk.models;
+using Models = lib_track_kiosk.models;    // alias to avoid ambiguity with helper types
 using lib_track_kiosk.configs;
+using lib_track_kiosk.helpers;       // for GetAllResearchPapers / AllResearchPaperInfo
+using lib_track_kiosk.loading_forms; // for Loading
+using Newtonsoft.Json.Linq;
 
 namespace lib_track_kiosk.sub_user_controls
 {
     public partial class UC_LookResearchPapers : UserControl
     {
-        private List<ResearchPaper> _researchPapers = new List<ResearchPaper>();
+        // Full dataset from backend (never mutated by filtering)
+        private List<Models.ResearchPaper> _allResearchPapers = new List<Models.ResearchPaper>();
+
+        // Current (possibly filtered) view
+        private List<Models.ResearchPaper> _researchPapers = new List<Models.ResearchPaper>();
 
         private readonly List<Color> _accentColors = new List<Color>
         {
@@ -36,6 +44,23 @@ namespace lib_track_kiosk.sub_user_controls
         // track currently selected card so we can toggle selection visuals
         private Panel _selectedCard;
 
+        // Debounce timer for search box — explicitly use System.Windows.Forms.Timer to avoid ambiguity
+        private readonly System.Windows.Forms.Timer _searchDebounceTimer;
+
+        // Departments for the combo box
+        private List<DeptItem> _departments = new List<DeptItem>();
+
+        // Currently selected department filter (null or 0 = All)
+        private int? _selectedDepartmentId = null;
+
+        // DeptItem helper (for ComboBox display + value)
+        private class DeptItem
+        {
+            public int Id { get; set; }
+            public string Name { get; set; }
+            public override string ToString() => Name ?? "N/A";
+        }
+
         public UC_LookResearchPapers()
         {
             InitializeComponent();
@@ -50,7 +75,20 @@ namespace lib_track_kiosk.sub_user_controls
                 search_txtBox.Enter += SearchTxtBox_GotFocus;
                 search_txtBox.Click += SearchTxtBox_Click;
                 search_txtBox.LostFocus += SearchTxtBox_LostFocus;
+
+                // Set up text-changed handler for searching
+                search_txtBox.TextChanged += SearchTxtBox_TextChanged;
             }
+
+            // wire department combo box change (if present)
+            if (departments_cmbx != null)
+            {
+                departments_cmbx.SelectedIndexChanged += Departments_cmbx_SelectedIndexChanged;
+            }
+
+            // search debounce timer (300ms) — instantiate explicitly as Forms Timer
+            _searchDebounceTimer = new System.Windows.Forms.Timer { Interval = 300 };
+            _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
 
             // clean up on disposal (avoid designer Dispose conflict)
             this.Disposed += UC_LookResearchPapers_Disposed;
@@ -58,7 +96,10 @@ namespace lib_track_kiosk.sub_user_controls
             // reduce flicker by enabling double buffering on the flow panel (non-public property)
             TryEnableDoubleBuffer(research_FlowLayoutPanel);
 
-            LoadResearchPapers();
+            // start async load from backend (shows Loading form while fetching)
+            _ = LoadDepartmentsAsync();       // populate department filter first
+            _ = LoadResearchPapersAsync();    // then load papers
+
             abstract_rtbx.Text = "📄 Please select a research paper to view its abstract.";
 
             // 🖱️ Scroll button handlers
@@ -76,13 +117,29 @@ namespace lib_track_kiosk.sub_user_controls
                     search_txtBox.Enter -= SearchTxtBox_GotFocus;
                     search_txtBox.Click -= SearchTxtBox_Click;
                     search_txtBox.LostFocus -= SearchTxtBox_LostFocus;
+                    search_txtBox.TextChanged -= SearchTxtBox_TextChanged;
                 }
             }
             catch { /* ignore */ }
 
             try
             {
+                if (departments_cmbx != null)
+                    departments_cmbx.SelectedIndexChanged -= Departments_cmbx_SelectedIndexChanged;
+            }
+            catch { /* ignore */ }
+
+            try
+            {
                 _osk?.Dispose();
+            }
+            catch { /* ignore */ }
+
+            try
+            {
+                // Stop and Dispose the forms timer safely
+                _searchDebounceTimer?.Stop();
+                _searchDebounceTimer?.Dispose();
             }
             catch { /* ignore */ }
         }
@@ -113,27 +170,184 @@ namespace lib_track_kiosk.sub_user_controls
             try { _osk?.Close(); } catch { /* ignore */ }
         }
 
-        private void LoadResearchPapers()
+        /// <summary>
+        /// Loads departments from API and populates departments_cmbx (if present).
+        /// Endpoint: {API_Backend.BaseUrl}/api/settings/departments
+        /// </summary>
+        private async Task LoadDepartmentsAsync()
         {
-            _researchPapers = new List<ResearchPaper>
-            {
-                new ResearchPaper { Id = 1, Title = "THE PERCEPTION ON THE POLITICAL DEVELOPMENT OF THE MUNICIPALITY OF AURORA FROM THE COMMONWEALTH PERIOD UP TO THE 2004 NATIONAL AND LOCAL ELECTION", Authors = "Jane Doe, Michael Green, Peter Cruz, Anna Villanueva, Ronald Flores", Year = 2024, Abstract = "This study investigates the political development of the Municipality of Aurora spanning several decades..." },
-                new ResearchPaper { Id = 2, Title = "Evaluating Data Privacy Techniques in Cloud Computing", Authors = "John Smith, Lisa Brown, Daniel Rivera", Year = 2023, Abstract = "This paper provides a comparative evaluation of data privacy mechanisms used in cloud environments..." },
-                new ResearchPaper { Id = 3, Title = "Blockchain Applications for Secure Health Records", Authors = "Alice Tan, Robert Miles, Francis Lim, Chloe Santos", Year = 2022, Abstract = "This study explores blockchain technology as a decentralized framework for securing patient health data..." },
-                new ResearchPaper { Id = 4, Title = "Quantum Machine Learning: Concepts and Challenges", Authors = "David Liu, Sarah Connor", Year = 2025, Abstract = "Quantum machine learning merges quantum computing principles with AI..." },
-                new ResearchPaper { Id = 5, Title = "Natural Language Processing in Educational Systems", Authors = "Paul Adams, Maria Santos, Henry Tan, Grace Yu", Year = 2021, Abstract = "This paper examines how NLP enhances personalized learning..." },
-                new ResearchPaper { Id = 6, Title = "Computer Vision for Smart Cities", Authors = "Henry Zhao, Bryan Chua, Patricia Lim", Year = 2024, Abstract = "The research investigates the deployment of computer vision algorithms..." },
-                new ResearchPaper { Id = 7, Title = "Augmented Reality for Interactive Learning", Authors = "Lisa Cruz, James Lee, Arthur Gomez", Year = 2022, Abstract = "This study evaluates AR-based tools for enhancing classroom engagement..." },
-                new ResearchPaper { Id = 8, Title = "Cybersecurity Threat Modeling in IoT Devices", Authors = "Sean Yu, Claire Tan", Year = 2023, Abstract = "The research explores threat modeling strategies for Internet of Things ecosystems..." },
-                new ResearchPaper { Id = 9, Title = "Renewable Energy Optimization using AI Algorithms", Authors = "Dennis Flores, Carlos Rivera, Nina Santos", Year = 2025, Abstract = "This research applies AI-driven optimization in renewable energy systems..." },
-                new ResearchPaper { Id = 10, Title = "Digital Transformation in Small Enterprises", Authors = "Olivia Cruz, Ethan Walker", Year = 2024, Abstract = "This paper examines how digital adoption affects small business productivity..." },
-                new ResearchPaper { Id = 11, Title = "Automated Grading Systems using Neural Networks", Authors = "Mark Reyes, Angela Wong, Peter Tan", Year = 2023, Abstract = "The study proposes a neural network model for grading academic essays automatically..." },
-                new ResearchPaper { Id = 12, Title = "The Role of Big Data in Healthcare Prediction", Authors = "Hannah Lee, Joseph Chan", Year = 2024, Abstract = "This research analyzes predictive models leveraging big data for patient diagnostics..." },
-                new ResearchPaper { Id = 13, Title = "Sustainable Urban Design through GIS Mapping", Authors = "Raymond Sy, Julia Torres, Anna Lopez", Year = 2021, Abstract = "This study integrates GIS-based analysis for sustainable city planning..." },
-                new ResearchPaper { Id = 14, Title = "E-Government Implementation Challenges", Authors = "Victor Tan, Maria dela Cruz", Year = 2022, Abstract = "The research examines the barriers in implementing digital governance systems..." },
-                new ResearchPaper { Id = 15, Title = "Machine Ethics in Autonomous Vehicles", Authors = "Albert King, Laura Park, Ron Villanueva", Year = 2025, Abstract = "This paper explores ethical frameworks applied to autonomous vehicle decision-making..." }
-            };
+            if (departments_cmbx == null) return;
 
+            try
+            {
+                using var http = new HttpClient();
+                string url = $"{API_Backend.BaseUrl}/api/settings/departments";
+                var res = await http.GetAsync(url);
+                if (!res.IsSuccessStatusCode) return;
+
+                string jsonString = await res.Content.ReadAsStringAsync();
+                var json = JObject.Parse(jsonString);
+                if (!(bool?)json["success"] == true) return;
+
+                JArray data = json["data"] as JArray;
+                if (data == null) return;
+
+                _departments.Clear();
+                // Add "All Departments" entry (Id = 0)
+                _departments.Add(new DeptItem { Id = 0, Name = "All Departments" });
+
+                foreach (var t in data)
+                {
+                    try
+                    {
+                        var obj = (JObject)t;
+                        int id = (int?)(obj["department_id"]) ?? 0;
+                        string name = obj["department_name"]?.ToString() ?? $"Dept {id}";
+                        _departments.Add(new DeptItem { Id = id, Name = name });
+                    }
+                    catch { /* ignore item */ }
+                }
+
+                // Populate combo box on UI thread
+                if (departments_cmbx.InvokeRequired)
+                {
+                    departments_cmbx.Invoke((Action)(() =>
+                    {
+                        departments_cmbx.Items.Clear();
+                        foreach (var d in _departments) departments_cmbx.Items.Add(d);
+                        departments_cmbx.SelectedIndex = 0;
+                    }));
+                }
+                else
+                {
+                    departments_cmbx.Items.Clear();
+                    foreach (var d in _departments) departments_cmbx.Items.Add(d);
+                    departments_cmbx.SelectedIndex = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Failed to load departments: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Called when the department combobox selection changes.
+        /// Sets the selected department id and reapplies the current search filter.
+        /// </summary>
+        private void Departments_cmbx_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                if (departments_cmbx.SelectedItem is DeptItem di)
+                {
+                    _selectedDepartmentId = di.Id == 0 ? (int?)null : di.Id;
+                }
+                else
+                {
+                    _selectedDepartmentId = null;
+                }
+
+                // Reapply search with current query and new department filter
+                string query = search_txtBox?.Text ?? "";
+                ApplySearchFilter(query);
+            }
+            catch { /* ignore */ }
+        }
+
+        /// <summary>
+        /// Load research papers from the backend using GetAllResearchPapers.
+        /// Shows the Loading form while fetching and closes it when finished.
+        /// Maps helper DTO (AllResearchPaperInfo) into the UI model (Models.ResearchPaper).
+        /// </summary>
+        private async Task LoadResearchPapersAsync()
+        {
+            Loading loadingForm = null;
+
+            // Show loading form (non-blocking)
+            try
+            {
+                loadingForm = new Loading();
+                var parentForm = this.FindForm();
+                if (parentForm != null)
+                {
+                    loadingForm.StartPosition = FormStartPosition.CenterParent;
+                    loadingForm.Show(parentForm);
+                }
+                else
+                {
+                    loadingForm.StartPosition = FormStartPosition.CenterScreen;
+                    loadingForm.Show();
+                }
+
+                loadingForm.Refresh();
+                Application.DoEvents();
+            }
+            catch
+            {
+                try { loadingForm?.Dispose(); } catch { }
+                loadingForm = null;
+            }
+
+            try
+            {
+                // GetAllResearchPapers returns List<AllResearchPaperInfo>
+                var fetched = await GetAllResearchPapers.GetAllAsync();
+
+                if (fetched != null && fetched.Count > 0)
+                {
+                    // Map AllResearchPaperInfo -> Models.ResearchPaper
+                    _allResearchPapers = fetched.Select(r => new Models.ResearchPaper
+                    {
+                        Id = r.ResearchPaperId,
+                        Title = string.IsNullOrWhiteSpace(r.Title) ? "N/A" : r.Title,
+                        Authors = string.IsNullOrWhiteSpace(r.Authors) ? "N/A" : r.Authors,
+                        Year = int.TryParse(r.YearPublication, out var y) ? y : 0,
+                        Abstract = string.IsNullOrWhiteSpace(r.Abstract) ? "" : r.Abstract,
+                        DepartmentId = r.DepartmentId,
+                        DepartmentName = string.IsNullOrWhiteSpace(r.DepartmentName) ? "N/A" : r.DepartmentName,
+                        ShelfLocation = string.IsNullOrWhiteSpace(r.ShelfLocation) ? "N/A" : r.ShelfLocation
+                    }).ToList();
+
+                    // initial view = full dataset
+                    _researchPapers = new List<Models.ResearchPaper>(_allResearchPapers);
+                }
+                else
+                {
+                    // no results — clear UI list
+                    _allResearchPapers = new List<Models.ResearchPaper>();
+                    _researchPapers = new List<Models.ResearchPaper>();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error loading research papers: {ex.Message}");
+                _allResearchPapers = new List<Models.ResearchPaper>();
+                _researchPapers = new List<Models.ResearchPaper>();
+            }
+            finally
+            {
+                // Close and dispose the loading form on UI thread
+                if (loadingForm != null)
+                {
+                    try
+                    {
+                        if (!loadingForm.IsDisposed)
+                        {
+                            if (loadingForm.InvokeRequired)
+                                loadingForm.Invoke((Action)(() => { loadingForm.Close(); loadingForm.Dispose(); }));
+                            else
+                            {
+                                loadingForm.Close();
+                                loadingForm.Dispose();
+                            }
+                        }
+                    }
+                    catch { /* ignore */ }
+                }
+            }
+
+            // Update UI
             DisplayResearchPapers();
         }
 
@@ -144,11 +358,66 @@ namespace lib_track_kiosk.sub_user_controls
             research_FlowLayoutPanel.WrapContents = true;
             research_FlowLayoutPanel.FlowDirection = FlowDirection.LeftToRight;
 
+            // If there are no items to display, show an informative message in the flow panel
+            if (_researchPapers == null || _researchPapers.Count == 0)
+            {
+                // Clear any selection / abstract
+                _selectedCard = null;
+                if (abstract_rtbx != null)
+                    abstract_rtbx.Text = "📄 No research papers found. Try a different search or select another department.";
+
+                AddNoResultsMessageToFlow();
+                return;
+            }
+
             foreach (var paper in _researchPapers)
                 AddResearchCard(paper);
         }
 
-        private void AddResearchCard(ResearchPaper paper)
+        // Adds a centered "no results" message into the FlowLayoutPanel
+        private void AddNoResultsMessageToFlow()
+        {
+            try
+            {
+                // Create a panel to host the message so margins/padding look nice
+                var msgPanel = new Panel
+                {
+                    Width = Math.Max(200, research_FlowLayoutPanel.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 40),
+                    Height = 120,
+                    Margin = new Padding(20),
+                    BackColor = Color.Transparent
+                };
+
+                var lbl = new Label
+                {
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Font = new Font("Segoe UI", 12f, FontStyle.Italic),
+                    ForeColor = Color.Gray,
+                    Text = "No research papers found.\nTry a different search or choose another department."
+                };
+
+                msgPanel.Controls.Add(lbl);
+
+                // If invoked from a non-UI thread, marshal to UI thread
+                if (research_FlowLayoutPanel.InvokeRequired)
+                {
+                    research_FlowLayoutPanel.Invoke((Action)(() => research_FlowLayoutPanel.Controls.Add(msgPanel)));
+                }
+                else
+                {
+                    research_FlowLayoutPanel.Controls.Add(msgPanel);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Swallow errors for UI fallback; still leave flow empty
+                Console.WriteLine($"⚠️ Failed to add 'no results' message: {ex.Message}");
+            }
+        }
+
+        // Use Models.ResearchPaper in method signatures to avoid ambiguity
+        private void AddResearchCard(Models.ResearchPaper paper)
         {
             int cardWidth = 410;
             int cardHeight = 150;
@@ -180,7 +449,7 @@ namespace lib_track_kiosk.sub_user_controls
             int contentWidth = cardWidth - (padding * 2) - badgeWidth - gap;
             if (contentWidth < 180) contentWidth = 180;
 
-            var authorsList = paper.Authors.Split(',').Select(a => a.Trim()).ToList();
+            var authorsList = (paper.Authors ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(a => a.Trim()).ToList();
             string authorsDisplay = string.Join(", ", authorsList.Take(3));
             if (authorsList.Count > 3) authorsDisplay += " + others";
 
@@ -212,6 +481,21 @@ namespace lib_track_kiosk.sub_user_controls
                 AutoEllipsis = true
             };
 
+            // Department label (displayed under authors)
+            Label department = new Label
+            {
+                AutoSize = false,
+                Left = padding,
+                Top = authors.Top + authors.Height + 6,
+                Width = contentWidth,
+                Height = 20,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
+                ForeColor = Color.Gray,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Text = string.IsNullOrWhiteSpace(paper.DepartmentName) ? "Department: N/A" : $"🏫 {paper.DepartmentName}",
+                AutoEllipsis = true
+            };
+
             int badgeLeft = padding + contentWidth + gap;
             int badgeTop = title.Top + (title.Height / 2) - (badgeHeight / 2);
             if (badgeTop < 10) badgeTop = 10;
@@ -227,7 +511,7 @@ namespace lib_track_kiosk.sub_user_controls
                 ForeColor = Color.White,
                 TextAlign = ContentAlignment.MiddleCenter,
                 BackColor = accent,
-                Text = paper.Year.ToString()
+                Text = paper.Year > 0 ? paper.Year.ToString() : "N/A"
             };
 
             year.Region = System.Drawing.Region.FromHrgn(
@@ -271,6 +555,7 @@ namespace lib_track_kiosk.sub_user_controls
             card.Controls.Add(topBar);
             card.Controls.Add(title);
             card.Controls.Add(authors);
+            card.Controls.Add(department);
             card.Controls.Add(year);
 
             // Attach click handlers to the card and all children so clicks anywhere select it.
@@ -287,7 +572,7 @@ namespace lib_track_kiosk.sub_user_controls
             research_FlowLayoutPanel.Controls.Add(card);
         }
 
-        private void ShowAbstract(ResearchPaper paper)
+        private void ShowAbstract(Models.ResearchPaper paper)
         {
             if (abstract_rtbx == null)
             {
@@ -297,13 +582,77 @@ namespace lib_track_kiosk.sub_user_controls
 
             abstract_rtbx.Clear();
 
-            var authorsList = paper.Authors.Split(',').Select(a => a.Trim()).ToList();
+            var authorsList = (paper.Authors ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(a => a.Trim()).ToList();
             string formattedAuthors = "👥 Authors:\n👤 " + string.Join("\n👤 ", authorsList);
 
+            string departmentLine = string.IsNullOrWhiteSpace(paper.DepartmentName) ? "🏫 Department: N/A" : $"🏫 Department: {paper.DepartmentName}";
+            string shelfLine = string.IsNullOrWhiteSpace(paper.ShelfLocation) ? "📚 Shelf: N/A" : $"📚 Shelf: {paper.ShelfLocation}";
+
             abstract_rtbx.Text =
-                $"📘 {paper.Title}\n\n{formattedAuthors}\n\n📅 {paper.Year}\n\n{paper.Abstract}";
+                $"📘 {paper.Title}\n\n{formattedAuthors}\n\n{departmentLine}\n{shelfLine}\n\n📅 {paper.Year}\n\n{paper.Abstract}";
             abstract_rtbx.SelectionStart = 0;
             abstract_rtbx.ScrollToCaret();
+        }
+
+        // Search textbox changed -> debounce and apply filter
+        private void SearchTxtBox_TextChanged(object sender, EventArgs e)
+        {
+            // restart debounce timer
+            try
+            {
+                _searchDebounceTimer.Stop();
+                _searchDebounceTimer.Start();
+            }
+            catch { /* ignore */ }
+        }
+
+        // Debounce timer tick -> perform search
+        private void SearchDebounceTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                _searchDebounceTimer.Stop();
+                string query = search_txtBox?.Text ?? "";
+                ApplySearchFilter(query);
+            }
+            catch { /* ignore */ }
+        }
+
+        /// <summary>
+        /// Filters the full dataset (_allResearchPapers) by the query string.
+        /// Searches in Title, Authors and Abstract, DepartmentName and Year.
+        /// Also applies the selected department filter (if any).
+        /// </summary>
+        private void ApplySearchFilter(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query) && !_selectedDepartmentId.HasValue)
+            {
+                // Reset to full list
+                _researchPapers = new List<Models.ResearchPaper>(_allResearchPapers);
+            }
+            else
+            {
+                string q = (query ?? "").Trim();
+                // case-insensitive contains checks and optional department filter
+                _researchPapers = _allResearchPapers.Where(p =>
+                    (!_selectedDepartmentId.HasValue || (p.DepartmentId.HasValue && p.DepartmentId.Value == _selectedDepartmentId.Value)) &&
+                    (
+                        string.IsNullOrEmpty(q) ||
+                        ((!string.IsNullOrEmpty(p.Title) && p.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                         (!string.IsNullOrEmpty(p.Authors) && p.Authors.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                         (!string.IsNullOrEmpty(p.Abstract) && p.Abstract.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                         (!string.IsNullOrEmpty(p.DepartmentName) && p.DepartmentName.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                         p.Year.ToString().IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
+                    )
+                ).ToList();
+            }
+
+            // clear selection and abstract when filtering
+            _selectedCard = null;
+            abstract_rtbx.Text = "📄 Please select a research paper to view its abstract.";
+
+            // refresh UI
+            DisplayResearchPapers();
         }
 
         // 🖱 Scroll up/down by one card

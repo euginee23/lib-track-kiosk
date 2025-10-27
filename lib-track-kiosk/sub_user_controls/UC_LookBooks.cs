@@ -10,6 +10,7 @@ using lib_track_kiosk.configs;
 using lib_track_kiosk.sub_forms; // for ViewSelectedBook
 using lib_track_kiosk.helpers;   // for GetAllBooks / BookInfo
 using lib_track_kiosk.models;    // for GroupedBook
+using lib_track_kiosk.loading_forms; // for Loading
 
 namespace lib_track_kiosk.sub_user_controls
 {
@@ -79,10 +80,43 @@ namespace lib_track_kiosk.sub_user_controls
         /// <summary>
         /// Loads books from backend using the GetAllBooks helper.
         /// Groups returned copies by batch_registration_key so each group becomes one card.
+        /// Shows the Loading form while the fetch runs, then closes it when finished (or on error).
         /// Falls back to local sample data if fetching fails or returns empty.
         /// </summary>
         private async void LoadBooks()
         {
+            Loading loadingForm = null;
+
+            // Try to show the loading form (modeless). We avoid blocking the UI thread.
+            try
+            {
+                loadingForm = new Loading();
+
+                // Optional: make the loading form appear centered over the parent form if available
+                var parentForm = this.FindForm();
+                if (parentForm != null)
+                {
+                    // Show with parent so it stays on top of the main window
+                    loadingForm.StartPosition = FormStartPosition.CenterParent;
+                    loadingForm.Show(parentForm);
+                }
+                else
+                {
+                    loadingForm.StartPosition = FormStartPosition.CenterScreen;
+                    loadingForm.Show();
+                }
+
+                // Ensure the loading form is painted immediately
+                loadingForm.Refresh();
+                Application.DoEvents();
+            }
+            catch
+            {
+                // If we fail to show the loading form for any reason, continue without it.
+                try { loadingForm?.Dispose(); } catch { }
+                loadingForm = null;
+            }
+
             try
             {
                 var fetched = await GetAllBooks.GetAllAsync();
@@ -102,6 +136,27 @@ namespace lib_track_kiosk.sub_user_controls
                 Console.WriteLine($"⚠️ Error loading books from API: {ex.Message}");
                 var samples = CreateSampleBooksFallback();
                 _groupedBooks = GroupByBatchKey(samples);
+            }
+            finally
+            {
+                // Close and dispose the loading form on the UI thread safely
+                if (loadingForm != null)
+                {
+                    try
+                    {
+                        if (!loadingForm.IsDisposed)
+                        {
+                            if (loadingForm.InvokeRequired)
+                                loadingForm.Invoke((Action)(() => { loadingForm.Close(); loadingForm.Dispose(); }));
+                            else
+                            {
+                                loadingForm.Close();
+                                loadingForm.Dispose();
+                            }
+                        }
+                    }
+                    catch { /* ignore */ }
+                }
             }
 
             DisplayBooks();
