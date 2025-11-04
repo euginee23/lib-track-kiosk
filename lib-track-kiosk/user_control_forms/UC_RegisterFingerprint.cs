@@ -5,7 +5,11 @@ using lib_track_kiosk.panel_forms;
 using libzkfpcsharp;
 using MySql.Data.MySqlClient;
 using System;
+using System.Drawing;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace lib_track_kiosk.user_control_forms
@@ -79,7 +83,6 @@ namespace lib_track_kiosk.user_control_forms
                 UpdateStatus("Error initializing fingerprint: " + ex.Message);
             }
         }
-
 
         private void OpenFingerprintDevice(int deviceIndex)
         {
@@ -185,7 +188,7 @@ namespace lib_track_kiosk.user_control_forms
                             {
                                 UpdateStatus("This finger is already scanned. Please scan a different finger.");
                             }));
-                            break; 
+                            break;
                         }
 
                         this.Invoke((Action)(() =>
@@ -197,7 +200,7 @@ namespace lib_track_kiosk.user_control_forms
 
                             UpdateStatus("Fingerprint captured successfully.");
                         }));
-                        break; 
+                        break;
                     }
                     Thread.Sleep(200);
                 }
@@ -249,6 +252,23 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
+        // Centralized logger (temporary / diagnostic). Writes to CommonApplicationData so non-admin apps can write.
+        private void LogError(string tag, Exception ex)
+        {
+            try
+            {
+                string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "lib-track-kiosk", "logs");
+                Directory.CreateDirectory(logDir);
+                string file = Path.Combine(logDir, "errors.log");
+                string text = $"[{DateTime.UtcNow:O}] {tag}: {ex.ToString()}{Environment.NewLine}";
+                File.AppendAllText(file, text);
+            }
+            catch
+            {
+                // swallow logging errors to avoid cascading failures
+            }
+        }
+
         private void StoreFingerprints()
         {
             if (finger1Template == null || finger2Template == null || finger3Template == null)
@@ -257,40 +277,100 @@ namespace lib_track_kiosk.user_control_forms
                 return;
             }
 
+            // Use provided Database config class for all connection details (per your request)
+            Database dbConfig = new Database();
+
+            // connection string built from Database class — do not hardcode values elsewhere
+            // Added AllowPublicKeyRetrieval and SslMode=None for compatibility troubleshooting (remove/change for production)
+            string connStr = $"Server={dbConfig.Host};Database={dbConfig.Name};User Id={dbConfig.User};Password={dbConfig.Password};Port={dbConfig.Port};AllowPublicKeyRetrieval=True;SslMode=None;ConnectionTimeout=15;";
+
             try
             {
-                Database db = new Database();
-                string connStr = $"server={db.Host};port={db.Port};database={db.Name};user={db.User};password={db.Password}";
+                // Ensure templates directory exists before DB ops via the centralized FileLocations helper
+                try
+                {
+                    FileLocations.EnsureTemplatesDirectoryExists();
+                }
+                catch (Exception exDir)
+                {
+                    MessageBox.Show("Cannot create templates directory: " + exDir.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    UpdateStatus("Error creating template directory: " + exDir.Message);
+                    LogError("StoreFingerprints-CreateDir", exDir);
+                    return;
+                }
 
                 using (MySqlConnection conn = new MySqlConnection(connStr))
                 {
-                    conn.Open();
+                    try
+                    {
+                        conn.Open();
+                    }
+                    catch (MySqlException mex)
+                    {
+                        // Diagnostic: log and show detailed MySQL exception info (temporarily)
+                        LogError("StoreFingerprints-MySqlOpen", mex);
+                        MessageBox.Show($"MySQL connection failed.\nError #{mex.Number}: {mex.Message}\n\nSee log for details.", "Database Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        UpdateStatus("MySQL connection failed: " + mex.Message);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError("StoreFingerprints-OpenGeneral", ex);
+                        MessageBox.Show("Unexpected error opening DB connection: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        UpdateStatus("Error opening DB connection: " + ex.Message);
+                        return;
+                    }
 
                     long userId = 0;
                     string getUserId = "SELECT user_id FROM users WHERE email=@em LIMIT 1";
-                    using (MySqlCommand cmd = new MySqlCommand(getUserId, conn))
+                    try
                     {
-                        cmd.Parameters.AddWithValue("@em", _loggedInUser.Email);
-                        object result = cmd.ExecuteScalar();
-                        if (result == null)
+                        using (MySqlCommand cmd = new MySqlCommand(getUserId, conn))
                         {
-                            MessageBox.Show("User not found in database!");
-                            return;
+                            cmd.Parameters.AddWithValue("@em", _loggedInUser.Email);
+                            object result = cmd.ExecuteScalar();
+                            if (result == null)
+                            {
+                                MessageBox.Show("User not found in database!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                UpdateStatus("User not found in database.");
+                                return;
+                            }
+                            userId = Convert.ToInt64(result);
                         }
-                        userId = Convert.ToInt64(result);
+                    }
+                    catch (MySqlException mex)
+                    {
+                        LogError("StoreFingerprints-GetUser", mex);
+                        MessageBox.Show($"DB query error.\nError #{mex.Number}: {mex.Message}", "DB Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
                     }
 
                     string insertFP = "INSERT INTO fingerprints (user_id, finger_type, data, created_at) VALUES (@uid, @type, @data, NOW())";
 
-                    if (ValidateFingerType(finger1Type_label.Text))
+                    // Helper: write template file and insert DB record with filename (not binary)
+                    void WriteFileAndInsert(byte[] template, string fingerLabel)
                     {
+                        string safeType = SanitizeFingerTypeForFile(fingerLabel);
+                        string fileName = $"{userId}_{safeType}.bin";
+                        string path = Path.Combine(FileLocations.TemplatesDirectory, fileName);
+
+                        // Overwrite file if exists
+                        File.WriteAllBytes(path, template);
+
                         using (MySqlCommand cmdFP = new MySqlCommand(insertFP, conn))
                         {
                             cmdFP.Parameters.AddWithValue("@uid", userId);
-                            cmdFP.Parameters.AddWithValue("@type", finger1Type_label.Text.Trim());
-                            cmdFP.Parameters.Add("@data", MySqlDbType.Blob).Value = finger1Template;
+                            cmdFP.Parameters.AddWithValue("@type", fingerLabel.Trim());
+                            // store filename into data column
+                            cmdFP.Parameters.AddWithValue("@data", fileName);
                             cmdFP.ExecuteNonQuery();
                         }
+                    }
+
+                    // Finger 1
+                    if (ValidateFingerType(finger1Type_label.Text))
+                    {
+                        WriteFileAndInsert(finger1Template, finger1Type_label.Text);
                     }
                     else
                     {
@@ -298,15 +378,10 @@ namespace lib_track_kiosk.user_control_forms
                         return;
                     }
 
+                    // Finger 2
                     if (ValidateFingerType(finger2Type_label.Text))
                     {
-                        using (MySqlCommand cmdFP = new MySqlCommand(insertFP, conn))
-                        {
-                            cmdFP.Parameters.AddWithValue("@uid", userId);
-                            cmdFP.Parameters.AddWithValue("@type", finger2Type_label.Text.Trim());
-                            cmdFP.Parameters.Add("@data", MySqlDbType.Blob).Value = finger2Template;
-                            cmdFP.ExecuteNonQuery();
-                        }
+                        WriteFileAndInsert(finger2Template, finger2Type_label.Text);
                     }
                     else
                     {
@@ -314,15 +389,10 @@ namespace lib_track_kiosk.user_control_forms
                         return;
                     }
 
+                    // Finger 3
                     if (ValidateFingerType(finger3Type_label.Text))
                     {
-                        using (MySqlCommand cmdFP = new MySqlCommand(insertFP, conn))
-                        {
-                            cmdFP.Parameters.AddWithValue("@uid", userId);
-                            cmdFP.Parameters.AddWithValue("@type", finger3Type_label.Text.Trim());
-                            cmdFP.Parameters.Add("@data", MySqlDbType.Blob).Value = finger3Template;
-                            cmdFP.ExecuteNonQuery();
-                        }
+                        WriteFileAndInsert(finger3Template, finger3Type_label.Text);
                     }
                     else
                     {
@@ -330,15 +400,40 @@ namespace lib_track_kiosk.user_control_forms
                         return;
                     }
 
-                    MessageBox.Show("Fingerprints saved successfully!");
+                    MessageBox.Show("Fingerprint templates saved to disk and filenames recorded in database successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     UpdateStatus("Fingerprints saved successfully.");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Database error: " + ex.Message);
+                LogError("StoreFingerprints-TopLevel", ex);
+                MessageBox.Show("Error saving fingerprint templates: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 UpdateStatus("Error saving fingerprints: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Sanitize the finger type to a safe filename fragment.
+        /// Removes invalid file name chars and whitespace.
+        /// </summary>
+        private string SanitizeFingerTypeForFile(string fingerType)
+        {
+            if (string.IsNullOrWhiteSpace(fingerType))
+                return "unknown";
+
+            string trimmed = fingerType.Trim();
+
+            foreach (char c in Path.GetInvalidFileNameChars())
+            {
+                trimmed = trimmed.Replace(c.ToString(), "");
+            }
+
+            trimmed = string.Concat(trimmed.Where(ch => !char.IsWhiteSpace(ch)));
+
+            if (string.IsNullOrEmpty(trimmed))
+                return "unknown";
+
+            return trimmed;
         }
 
         private bool ValidateFingerType(string fingerType)

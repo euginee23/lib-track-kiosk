@@ -10,7 +10,7 @@ namespace lib_track_kiosk.configs
 {
     /// <summary>
     /// Lightweight reusable helper to open/close an on-screen keyboard executable.
-    /// Default path targets: E:\Library-Tracker\lib-track-kiosk\on-screen-kb\FreeVK.exe
+    /// Default path is provided by FileLocations.OnScreenKeyboardExecutable.
     /// You can override the path via the constructor or Open(path).
     /// When the keyboard is open this class installs a low-level keyboard hook;
     /// pressing Enter (Return) will automatically close the keyboard.
@@ -27,10 +27,10 @@ namespace lib_track_kiosk.configs
         private LowLevelKeyboardProc _procDelegate;
 
         /// <summary>
-        /// Default constructor uses the project's FreeVK path.
+        /// Default constructor uses the path defined in FileLocations.OnScreenKeyboardExecutable.
         /// </summary>
         public OnScreenKeyboard()
-            : this(@"E:\Library-Tracker\lib-track-kiosk\on-screen-kb\FreeVK.exe")
+            : this(FileLocations.OnScreenKeyboardExecutable)
         {
         }
 

@@ -19,11 +19,44 @@ namespace lib_track_kiosk.user_control_forms
         private CancellationTokenSource _cts;
         private static readonly HttpClient httpClient = new HttpClient();
 
+        // On-screen keyboard helper
+        private OnScreenKeyboard _osk;
+
         public UC_UserLogin()
         {
             InitializeComponent();
+
+            // construct the keyboard helper (uses FileLocations.OnScreenKeyboardExecutable by default)
+            try
+            {
+                _osk = new OnScreenKeyboard();
+            }
+            catch
+            {
+                // swallow construction errors — behavior will just fall back to no on-screen keyboard
+                _osk = null;
+            }
+
+            // wire focus events for textboxes so keyboard opens/closes automatically
+            email_txt.GotFocus += Input_GotFocus;
+            password_txt.GotFocus += Input_GotFocus;
+
+            email_txt.Leave += Input_Leave;
+            password_txt.Leave += Input_Leave;
+
+            // handle Enter key inside the textboxes to close the keyboard
+            email_txt.KeyDown += TextBox_KeyDown;
+            password_txt.KeyDown += TextBox_KeyDown;
+
             this.Load += UC_UserLogin_Load;
             login_btn.Click += Login_btn_Click;
+
+            // ensure OSK is disposed when this control is disposed/destroyed
+            this.Disposed += (s, e) =>
+            {
+                try { _osk?.Dispose(); } catch { }
+                _osk = null;
+            };
         }
 
         private async void UC_UserLogin_Load(object sender, EventArgs e)
@@ -284,6 +317,62 @@ namespace lib_track_kiosk.user_control_forms
                 var welcome = new UC_Welcome();
                 mainForm.addUserControl(welcome);
             }
+        }
+
+        // ------------------ On-screen keyboard related handlers ------------------
+
+        private void Input_GotFocus(object sender, EventArgs e)
+        {
+            // Open the on-screen keyboard (fire-and-forget to avoid blocking UI).
+            if (_osk == null) return;
+            Task.Run(() =>
+            {
+                try { _osk.Open(); } catch { }
+            });
+        }
+
+        private async void Input_Leave(object sender, EventArgs e)
+        {
+            // Debounce a little to avoid closing when focus briefly moves between the two textboxes.
+            await Task.Delay(200).ConfigureAwait(true);
+
+            // If neither textbox has focus, close the keyboard.
+            bool emailFocused = false;
+            bool passwordFocused = false;
+
+            // Access Focused properties on UI thread
+            if (this.IsHandleCreated)
+            {
+                try
+                {
+                    emailFocused = email_txt.Focused;
+                    passwordFocused = password_txt.Focused;
+                }
+                catch { }
+            }
+
+            if (!emailFocused && !passwordFocused)
+            {
+                try { _osk?.Close(); } catch { }
+            }
+        }
+
+        // Close the on-screen keyboard when Enter is pressed in either textbox.
+        private void TextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                try { _osk?.Close(); } catch { }
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            base.OnHandleDestroyed(e);
+            try { _osk?.Dispose(); } catch { }
+            _osk = null;
         }
     }
 }

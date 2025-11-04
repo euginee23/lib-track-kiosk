@@ -306,7 +306,6 @@ namespace lib_track_kiosk.user_control_forms
 
             if (type == "Book")
             {
-                MessageBox.Show($"Scanned Book ID: {id}");
                 if (id.HasValue && !IsBookAlreadyScanned(id.Value, LastScannedBookNumber))
                 {
                     scannedBooks.Add((id.Value, LastScannedBookNumber));
@@ -316,7 +315,6 @@ namespace lib_track_kiosk.user_control_forms
             }
             else if (type == "Research Paper")
             {
-                MessageBox.Show($"Scanned Research Paper ID: {id}");
                 if (id.HasValue && !IsResearchPaperAlreadyScanned(id.Value))
                 {
                     scannedResearchPapers.Add(id.Value);
@@ -1139,6 +1137,25 @@ namespace lib_track_kiosk.user_control_forms
                     }
 
                     MessageBox.Show(sb.ToString(), "Return Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    // --- Show Post-Assessment Survey BEFORE returning to the welcome screen ---
+                    try
+                    {
+                        using (var survey = new PostAssessmentSurvey())
+                        {
+                            var owner = this.FindForm();
+                            survey.StartPosition = FormStartPosition.CenterParent;
+                            if (owner != null)
+                                survey.ShowDialog(owner);
+                            else
+                                survey.ShowDialog();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // If survey fails to open for any reason, log but continue the flow.
+                        Console.Error.WriteLine("Failed to show PostAssessmentSurvey: " + ex);
+                    }
 
                     // Clear scanned lists
                     scannedBooks.Clear();

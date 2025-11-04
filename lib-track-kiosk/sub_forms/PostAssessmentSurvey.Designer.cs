@@ -29,8 +29,8 @@
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(PostAssessmentSurvey));
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges3 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges4 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges1 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges2 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             pictureBox1 = new PictureBox();
             pictureBox2 = new PictureBox();
             pictureBox3 = new PictureBox();
@@ -40,6 +40,10 @@
             label1 = new Label();
             pictureBox5 = new PictureBox();
             panel2 = new Panel();
+            panel3 = new Panel();
+            panel4 = new Panel();
+            panel5 = new Panel();
+            panel6 = new Panel();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
@@ -51,7 +55,7 @@
             // pictureBox1
             // 
             pictureBox1.Image = (Image)resources.GetObject("pictureBox1.Image");
-            pictureBox1.Location = new Point(658, 19);
+            pictureBox1.Location = new Point(695, 36);
             pictureBox1.Name = "pictureBox1";
             pictureBox1.Size = new Size(117, 114);
             pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
@@ -61,7 +65,7 @@
             // pictureBox2
             // 
             pictureBox2.Image = (Image)resources.GetObject("pictureBox2.Image");
-            pictureBox2.Location = new Point(21, 19);
+            pictureBox2.Location = new Point(58, 36);
             pictureBox2.Name = "pictureBox2";
             pictureBox2.Size = new Size(117, 114);
             pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
@@ -71,7 +75,7 @@
             // pictureBox3
             // 
             pictureBox3.Image = (Image)resources.GetObject("pictureBox3.Image");
-            pictureBox3.Location = new Point(163, 12);
+            pictureBox3.Location = new Point(200, 29);
             pictureBox3.Name = "pictureBox3";
             pictureBox3.Size = new Size(461, 128);
             pictureBox3.SizeMode = PictureBoxSizeMode.Zoom;
@@ -81,7 +85,7 @@
             // pictureBox4
             // 
             pictureBox4.Image = (Image)resources.GetObject("pictureBox4.Image");
-            pictureBox4.Location = new Point(152, 130);
+            pictureBox4.Location = new Point(189, 147);
             pictureBox4.Name = "pictureBox4";
             pictureBox4.Size = new Size(487, 128);
             pictureBox4.SizeMode = PictureBoxSizeMode.Zoom;
@@ -91,7 +95,7 @@
             // close_btn
             // 
             close_btn.BorderRadius = 5;
-            close_btn.CustomizableEdges = customizableEdges3;
+            close_btn.CustomizableEdges = customizableEdges1;
             close_btn.DisabledState.BorderColor = Color.DarkGray;
             close_btn.DisabledState.CustomBorderColor = Color.DarkGray;
             close_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
@@ -99,9 +103,9 @@
             close_btn.FillColor = Color.Maroon;
             close_btn.Font = new Font("Segoe UI", 9F);
             close_btn.ForeColor = Color.White;
-            close_btn.Location = new Point(664, 4);
+            close_btn.Location = new Point(663, 11);
             close_btn.Name = "close_btn";
-            close_btn.ShadowDecoration.CustomizableEdges = customizableEdges4;
+            close_btn.ShadowDecoration.CustomizableEdges = customizableEdges2;
             close_btn.Size = new Size(129, 37);
             close_btn.TabIndex = 11;
             close_btn.Text = "Close";
@@ -112,16 +116,16 @@
             panel1.BackColor = SystemColors.ActiveCaption;
             panel1.Controls.Add(label1);
             panel1.Controls.Add(close_btn);
-            panel1.Location = new Point(2, 697);
+            panel1.Location = new Point(35, 695);
             panel1.Name = "panel1";
-            panel1.Size = new Size(796, 44);
+            panel1.Size = new Size(803, 59);
             panel1.TabIndex = 12;
             // 
             // label1
             // 
             label1.AutoSize = true;
             label1.Font = new Font("Segoe UI Semibold", 15.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label1.Location = new Point(10, 7);
+            label1.Location = new Point(10, 13);
             label1.Name = "label1";
             label1.Size = new Size(450, 30);
             label1.TabIndex = 12;
@@ -130,7 +134,7 @@
             // pictureBox5
             // 
             pictureBox5.Image = (Image)resources.GetObject("pictureBox5.Image");
-            pictureBox5.Location = new Point(224, 298);
+            pictureBox5.Location = new Point(262, 312);
             pictureBox5.Name = "pictureBox5";
             pictureBox5.Size = new Size(350, 350);
             pictureBox5.SizeMode = PictureBoxSizeMode.Zoom;
@@ -140,17 +144,53 @@
             // panel2
             // 
             panel2.BackColor = SystemColors.ActiveCaption;
-            panel2.Location = new Point(203, 279);
+            panel2.Location = new Point(240, 292);
             panel2.Name = "panel2";
             panel2.Size = new Size(393, 389);
             panel2.TabIndex = 14;
+            // 
+            // panel3
+            // 
+            panel3.BackColor = Color.Maroon;
+            panel3.Location = new Point(0, 764);
+            panel3.Name = "panel3";
+            panel3.Size = new Size(871, 23);
+            panel3.TabIndex = 15;
+            // 
+            // panel4
+            // 
+            panel4.BackColor = Color.Maroon;
+            panel4.Location = new Point(0, 0);
+            panel4.Name = "panel4";
+            panel4.Size = new Size(871, 23);
+            panel4.TabIndex = 16;
+            // 
+            // panel5
+            // 
+            panel5.BackColor = Color.Maroon;
+            panel5.Location = new Point(0, 22);
+            panel5.Name = "panel5";
+            panel5.Size = new Size(23, 765);
+            panel5.TabIndex = 17;
+            // 
+            // panel6
+            // 
+            panel6.BackColor = Color.Maroon;
+            panel6.Location = new Point(848, 22);
+            panel6.Name = "panel6";
+            panel6.Size = new Size(23, 765);
+            panel6.TabIndex = 18;
             // 
             // PostAssessmentSurvey
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.ButtonHighlight;
-            ClientSize = new Size(800, 743);
+            ClientSize = new Size(869, 787);
+            Controls.Add(panel6);
+            Controls.Add(panel5);
+            Controls.Add(panel4);
+            Controls.Add(panel3);
             Controls.Add(pictureBox5);
             Controls.Add(panel1);
             Controls.Add(pictureBox4);
@@ -184,5 +224,9 @@
         private Label label1;
         private PictureBox pictureBox5;
         private Panel panel2;
+        private Panel panel3;
+        private Panel panel4;
+        private Panel panel5;
+        private Panel panel6;
     }
 }

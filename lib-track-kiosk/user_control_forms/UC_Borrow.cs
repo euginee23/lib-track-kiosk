@@ -418,6 +418,26 @@ namespace lib_track_kiosk.user_control_forms
                 {
                     MessageBox.Show($"✅ Borrow successful!\nItems borrowed: {borrowRequest.BookIds.Count + borrowRequest.ResearchPaperIds.Count}\nReference: {borrowRequest.ReferenceNumber}");
 
+                    // --- Show Post-Assessment Survey BEFORE returning to the welcome screen ---
+                    try
+                    {
+                        using (var survey = new PostAssessmentSurvey())
+                        {
+                            // center on parent form if available
+                            var owner = this.FindForm();
+                            survey.StartPosition = FormStartPosition.CenterParent;
+                            if (owner != null)
+                                survey.ShowDialog(owner);
+                            else
+                                survey.ShowDialog();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // If survey fails to open for any reason, log or show a message but continue the flow.
+                        Console.Error.WriteLine("Failed to show PostAssessmentSurvey: " + ex);
+                    }
+
                     // CLEAR SCANNED ITEMS
                     scannedBooks.Clear();
                     scannedResearchPapers.Clear();

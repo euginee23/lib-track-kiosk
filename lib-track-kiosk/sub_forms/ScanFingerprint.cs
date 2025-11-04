@@ -23,6 +23,7 @@ namespace lib_track_kiosk.sub_forms
         private byte[] CapTmp;
         private int cbCapTmp = 2048;
 
+        // now stores (userId, templateBytes) where templateBytes come from files (or fallback to DB blob)
         private List<(int userId, byte[] template)> fingerprintTemplates = new();
         public int? ScannedUserId { get; private set; }
 
@@ -148,8 +149,20 @@ namespace lib_track_kiosk.sub_forms
         private void LoadFingerprintTemplates()
         {
             fingerprintTemplates.Clear();
+
             try
             {
+                // Ensure templates directory exists (no-op if already present)
+                try
+                {
+                    FileLocations.EnsureTemplatesDirectoryExists();
+                }
+                catch (Exception exDir)
+                {
+                    UpdateStatus("⚠️ Template directory error: " + exDir.Message);
+                    // continue — we might still be able to read absolute paths stored in DB
+                }
+
                 Database db = new Database();
                 string connStr = $"server={db.Host};port={db.Port};database={db.Name};user={db.User};password={db.Password}";
 
@@ -162,7 +175,50 @@ namespace lib_track_kiosk.sub_forms
                     {
                         while (reader.Read())
                         {
-                            fingerprintTemplates.Add((reader.GetInt32("user_id"), (byte[])reader["data"]));
+                            int userId = reader.GetInt32("user_id");
+                            object dataObj = reader["data"];
+
+                            if (dataObj == DBNull.Value)
+                                continue;
+
+                            // If the DB row still contains a binary blob (old data), handle it:
+                            if (dataObj is byte[] blob)
+                            {
+                                // direct blob -> use as template bytes
+                                fingerprintTemplates.Add((userId, blob));
+                                continue;
+                            }
+
+                            // Otherwise we expect a filename or path stored as string
+                            string dataStr = dataObj.ToString().Trim();
+                            if (string.IsNullOrEmpty(dataStr))
+                                continue;
+
+                            string candidatePath;
+                            // if dataStr is a rooted path, use it; otherwise combine with central templates folder
+                            if (Path.IsPathRooted(dataStr))
+                                candidatePath = dataStr;
+                            else
+                                candidatePath = Path.Combine(FileLocations.TemplatesDirectory, dataStr);
+
+                            if (File.Exists(candidatePath))
+                            {
+                                try
+                                {
+                                    byte[] templateBytes = File.ReadAllBytes(candidatePath);
+                                    fingerprintTemplates.Add((userId, templateBytes));
+                                }
+                                catch (Exception exFile)
+                                {
+                                    // failed to read file, log via status (non-fatal)
+                                    UpdateStatus($"⚠️ Could not read template file for user {userId}: {Path.GetFileName(candidatePath)}");
+                                }
+                            }
+                            else
+                            {
+                                // file missing — try to handle gracefully and continue
+                                UpdateStatus($"⚠️ Template file not found: {Path.GetFileName(candidatePath)} (user {userId})");
+                            }
                         }
                     }
                 }
