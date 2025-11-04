@@ -29,21 +29,23 @@
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(PostAssessmentSurvey));
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges1 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges2 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges3 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges4 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             pictureBox1 = new PictureBox();
             pictureBox2 = new PictureBox();
             pictureBox3 = new PictureBox();
             pictureBox4 = new PictureBox();
-            surveyPanelNav = new Panel();
             close_btn = new Guna.UI2.WinForms.Guna2Button();
             panel1 = new Panel();
             label1 = new Label();
+            pictureBox5 = new PictureBox();
+            panel2 = new Panel();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox4).BeginInit();
             panel1.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBox5).BeginInit();
             SuspendLayout();
             // 
             // pictureBox1
@@ -86,18 +88,10 @@
             pictureBox4.TabIndex = 3;
             pictureBox4.TabStop = false;
             // 
-            // surveyPanelNav
-            // 
-            surveyPanelNav.BorderStyle = BorderStyle.Fixed3D;
-            surveyPanelNav.Location = new Point(216, 285);
-            surveyPanelNav.Name = "surveyPanelNav";
-            surveyPanelNav.Size = new Size(350, 350);
-            surveyPanelNav.TabIndex = 6;
-            // 
             // close_btn
             // 
             close_btn.BorderRadius = 5;
-            close_btn.CustomizableEdges = customizableEdges1;
+            close_btn.CustomizableEdges = customizableEdges3;
             close_btn.DisabledState.BorderColor = Color.DarkGray;
             close_btn.DisabledState.CustomBorderColor = Color.DarkGray;
             close_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
@@ -107,7 +101,7 @@
             close_btn.ForeColor = Color.White;
             close_btn.Location = new Point(664, 4);
             close_btn.Name = "close_btn";
-            close_btn.ShadowDecoration.CustomizableEdges = customizableEdges2;
+            close_btn.ShadowDecoration.CustomizableEdges = customizableEdges4;
             close_btn.Size = new Size(129, 37);
             close_btn.TabIndex = 11;
             close_btn.Text = "Close";
@@ -133,18 +127,37 @@
             label1.TabIndex = 12;
             label1.Text = "Kindly scan the QR code to answer our Suvey.";
             // 
+            // pictureBox5
+            // 
+            pictureBox5.Image = (Image)resources.GetObject("pictureBox5.Image");
+            pictureBox5.Location = new Point(224, 298);
+            pictureBox5.Name = "pictureBox5";
+            pictureBox5.Size = new Size(350, 350);
+            pictureBox5.SizeMode = PictureBoxSizeMode.Zoom;
+            pictureBox5.TabIndex = 13;
+            pictureBox5.TabStop = false;
+            // 
+            // panel2
+            // 
+            panel2.BackColor = SystemColors.ActiveCaption;
+            panel2.Location = new Point(203, 279);
+            panel2.Name = "panel2";
+            panel2.Size = new Size(393, 389);
+            panel2.TabIndex = 14;
+            // 
             // PostAssessmentSurvey
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.ButtonHighlight;
             ClientSize = new Size(800, 743);
+            Controls.Add(pictureBox5);
             Controls.Add(panel1);
-            Controls.Add(surveyPanelNav);
             Controls.Add(pictureBox4);
             Controls.Add(pictureBox3);
             Controls.Add(pictureBox2);
             Controls.Add(pictureBox1);
+            Controls.Add(panel2);
             FormBorderStyle = FormBorderStyle.None;
             Name = "PostAssessmentSurvey";
             SizeGripStyle = SizeGripStyle.Hide;
@@ -156,6 +169,7 @@
             ((System.ComponentModel.ISupportInitialize)pictureBox4).EndInit();
             panel1.ResumeLayout(false);
             panel1.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBox5).EndInit();
             ResumeLayout(false);
         }
 
@@ -165,9 +179,10 @@
         private PictureBox pictureBox2;
         private PictureBox pictureBox3;
         private PictureBox pictureBox4;
-        private Panel surveyPanelNav;
         private Guna.UI2.WinForms.Guna2Button close_btn;
         private Panel panel1;
         private Label label1;
+        private PictureBox pictureBox5;
+        private Panel panel2;
     }
 }

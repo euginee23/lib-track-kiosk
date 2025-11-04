@@ -2,8 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Threading.Tasks;
 using lib_track_kiosk.configs;
 
@@ -16,8 +16,12 @@ namespace lib_track_kiosk.helpers
 
         /// <summary>
         /// Fetches all books from the backend and returns a list of BookInfo objects.
-        /// For each book, attempts to decode the cover image and load available copies (when batch key is present).
-        /// Also maps genre/department fields and the isUsingDepartment flag returned by the API so the UI can filter by either genre or department.
+        /// IMPORTANT CHANGE:
+        /// - The server returns book_cover as a URL (not a blob). We preserve that URL on BookInfo (via common property names)
+        ///   and do NOT try to download/ decode it here.
+        /// - To avoid overwhelming the server with per-book batch requests, we no longer call GET /api/books/{batchKey}
+        ///   for every book. Instead we compute available-copy counts from the main GET /api/books response by grouping
+        ///   rows by batch_registration_key and counting status == "Available". This dramatically reduces request volume.
         /// </summary>
         public static async Task<List<BookInfo>> GetAllAsync()
         {
@@ -38,11 +42,15 @@ namespace lib_track_kiosk.helpers
                 if (!(bool?)json["success"] == true)
                     throw new Exception("Failed to fetch books: success flag is false.");
 
-                // data expected to be an array of books
+                // data expected to be an array of books (each row typically represents a copy)
                 JToken dataToken = json["data"];
                 if (dataToken == null) return result;
 
                 JArray booksArray = dataToken as JArray ?? new JArray(dataToken);
+
+                // First pass: build BookInfo list and a map of available counts per batch key.
+                var availableCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var tempList = new List<BookInfo>();
 
                 foreach (var item in booksArray)
                 {
@@ -56,7 +64,7 @@ namespace lib_track_kiosk.helpers
                             BookNumber = bookObj["book_number"]?.ToString(),
                             Title = bookObj["book_title"]?.ToString() ?? "N/A",
                             Author = bookObj["author"]?.ToString() ?? bookObj["book_author"]?.ToString() ?? "N/A",
-                            Publisher = bookObj["publisher"]?.ToString() ?? bookObj["publisher"]?.ToString() ?? "N/A",
+                            Publisher = bookObj["publisher"]?.ToString() ?? "N/A",
                             ShelfLocation = $"{bookObj["shelf_number"] ?? "N/A"}-{bookObj["shelf_column"] ?? "N/A"}-{bookObj["shelf_row"] ?? "N/A"}",
                             Year = bookObj["book_year"]?.ToString() ?? "N/A",
                             Edition = bookObj["book_edition"]?.ToString() ?? "N/A",
@@ -64,15 +72,13 @@ namespace lib_track_kiosk.helpers
                             Donor = bookObj["book_donor"]?.ToString() ?? "N/A",
                             Status = bookObj["status"]?.ToString() ?? "N/A",
                             BatchRegistrationKey = bookObj["batch_registration_key"]?.ToString(),
-                            // keep previous mapping of available copies blank for now (we may replace after fetching batch info)
+                            // AvailableCopies will be set after we compute counts
                             AvailableCopies = 0
                         };
 
                         // Map isUsingDepartment / genre / genre_id returned by the API.
-                        // The backend route aliases the column "genre" to either the department_name or the book_genre depending on isUsingDepartment.
                         try
                         {
-                            // parse isUsingDepartment safely (could be 0/1, boolean, or string)
                             var isUsingDeptToken = bookObj["isUsingDepartment"] ?? bookObj["is_using_department"];
                             bool isUsingDept = false;
                             if (isUsingDeptToken != null)
@@ -90,11 +96,9 @@ namespace lib_track_kiosk.helpers
                             }
                             book.IsUsingDepartment = isUsingDept;
 
-                            // genre alias from route (contains book_genre OR department_name depending on isUsingDepartment)
                             var genreVal = bookObj["genre"]?.ToString();
                             if (!string.IsNullOrWhiteSpace(genreVal))
                             {
-                                // populate both Genre (generic) and specific DepartmentName / BookGenre fields to make reflection-based lookups in the UI succeed
                                 book.Genre = genreVal;
                                 if (isUsingDept)
                                     book.DepartmentName = genreVal;
@@ -106,131 +110,90 @@ namespace lib_track_kiosk.helpers
                         }
                         catch { /* ignore mapping errors but continue */ }
 
-                        // Decode cover image (if present)
-                        book.CoverImage = DecodeImage(bookObj["book_cover"]);
-
-                        // Load available copies when batch key is present (best-effort, don't fail the whole list)
-                        if (!string.IsNullOrEmpty(book.BatchRegistrationKey))
+                        // Preserve cover URL (server returns URL) on BookInfo via common property names.
+                        var coverToken = bookObj["book_cover"];
+                        if (coverToken != null && coverToken.Type == JTokenType.String)
                         {
-                            try
+                            var s = coverToken.ToString().Trim();
+                            if (!string.IsNullOrWhiteSpace(s))
                             {
-                                book.AvailableCopies = await GetAvailableCopiesAsync(book.BatchRegistrationKey);
+                                TrySetStringPropertyIfExists(book, "CoverImageUrl", s);
+                                TrySetStringPropertyIfExists(book, "CoverUrl", s);
+                                TrySetStringPropertyIfExists(book, "ImageUrl", s);
+                                // leave inline CoverImage null so UI can lazy-download when needed
+                                book.CoverImage = null;
                             }
-                            catch (Exception ex)
+                        }
+                        else
+                        {
+                            book.CoverImage = null;
+                        }
+
+                        // Preserve QR URL if present
+                        var qrToken = bookObj["book_qr"];
+                        if (qrToken != null && qrToken.Type == JTokenType.String)
+                        {
+                            var s = qrToken.ToString().Trim();
+                            if (!string.IsNullOrWhiteSpace(s))
                             {
-                                Console.WriteLine($"⚠️ Failed to get available copies for batch {book.BatchRegistrationKey}: {ex.Message}");
-                                book.AvailableCopies = 0;
+                                TrySetStringPropertyIfExists(book, "QrUrl", s);
+                                TrySetStringPropertyIfExists(book, "BookQrUrl", s);
                             }
                         }
 
-                        result.Add(book);
+                        // Track available counts per batch key (or per-book if no batch key)
+                        string batchKey = book.BatchRegistrationKey ?? $"__single__{book.BookId}";
+                        if (!availableCounts.ContainsKey(batchKey))
+                            availableCounts[batchKey] = 0;
+                        if (string.Equals(book.Status, "Available", StringComparison.OrdinalIgnoreCase))
+                            availableCounts[batchKey]++;
+
+                        tempList.Add(book);
                     }
                     catch (Exception exItem)
                     {
-                        // Log the single-item failure and continue with other books
                         Console.WriteLine($"⚠️ Error processing book item: {exItem.Message}");
                     }
+                }
+
+                // Second pass: set AvailableCopies on each BookInfo using the computed map
+                foreach (var b in tempList)
+                {
+                    string batchKey = b.BatchRegistrationKey ?? $"__single__{b.BookId}";
+                    if (availableCounts.TryGetValue(batchKey, out int cnt))
+                        b.AvailableCopies = cnt;
+                    else
+                        b.AvailableCopies = 0;
+
+                    result.Add(b);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error fetching all books: {ex.Message}");
-                // bubble up or return empty list — currently returning what we have
+                // return whatever we've collected so far (resilient)
             }
 
             return result;
         }
 
         /// <summary>
-        /// Calls GET /api/books/{batchKey} to determine quantity or count available books in a batch.
-        /// This mirrors the backend batch endpoint used by the single-book fetcher.
+        /// Tries to set a string property on the BookInfo instance by name using reflection.
+        /// Silently ignores when the property doesn't exist or cannot be written.
         /// </summary>
-        private static async Task<int> GetAvailableCopiesAsync(string batchKey)
+        private static void TrySetStringPropertyIfExists(BookInfo book, string propName, string value)
         {
+            if (book == null || string.IsNullOrWhiteSpace(propName)) return;
             try
             {
-                string apiUrl = $"{baseApiUrl}/{batchKey}";
-                HttpResponseMessage response = await httpClient.GetAsync(apiUrl);
-
-                if (!response.IsSuccessStatusCode) return 0;
-
-                string jsonString = await response.Content.ReadAsStringAsync();
-                JObject json = JObject.Parse(jsonString);
-
-                if (!(bool?)json["success"] == true) return 0;
-
-                // If the endpoint returns a single object with quantity
-                if (json["data"]?["quantity"] != null)
-                    return (int)json["data"]["quantity"];
-
-                // If the endpoint returns an array of books, count those with status "Available"
-                if (json["data"] is JArray allBooks)
+                var t = book.GetType();
+                var p = t.GetProperty(propName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                if (p != null && p.CanWrite && (p.PropertyType == typeof(string) || p.PropertyType == typeof(object)))
                 {
-                    int availableCount = 0;
-                    foreach (var book in allBooks)
-                    {
-                        if (book["status"]?.ToString() == "Available")
-                            availableCount++;
-                    }
-                    return availableCount;
-                }
-
-                return 0;
-            }
-            catch
-            {
-                return 0;
-            }
-        }
-
-        /// <summary>
-        /// Decodes an image token coming from the backend (supports Node Buffer style { data: [...] } and base64/data URI string).
-        /// Clones the Image to avoid issues when disposing the underlying MemoryStream.
-        /// </summary>
-        private static Image DecodeImage(JToken imageToken)
-        {
-            if (imageToken == null || imageToken.Type == JTokenType.Null) return null;
-
-            try
-            {
-                // Node Buffer: { data: [ ... ] }
-                if (imageToken["data"] != null && imageToken["data"] is JArray byteArray)
-                {
-                    byte[] imageBytes = byteArray.ToObject<byte[]>();
-                    using var ms = new MemoryStream(imageBytes);
-                    using var srcImg = Image.FromStream(ms);
-                    return (Image)srcImg.Clone();
-                }
-
-                // Base64 or data URI string
-                if (imageToken.Type == JTokenType.String)
-                {
-                    string base64 = imageToken.ToString().Trim();
-                    if (string.IsNullOrEmpty(base64)) return null;
-
-                    if (base64.StartsWith("data:image", StringComparison.OrdinalIgnoreCase))
-                        base64 = base64.Substring(base64.IndexOf(",") + 1);
-
-                    try
-                    {
-                        byte[] imageBytes = Convert.FromBase64String(base64);
-                        using var ms = new MemoryStream(imageBytes);
-                        using var srcImg = Image.FromStream(ms);
-                        return (Image)srcImg.Clone();
-                    }
-                    catch (FormatException fe)
-                    {
-                        Console.WriteLine($"⚠️ Invalid base64 image data: {fe.Message}");
-                        return null;
-                    }
+                    p.SetValue(book, value);
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️ Error decoding book cover: {ex.Message}");
-            }
-
-            return null;
+            catch { /* ignore */ }
         }
     }
 }

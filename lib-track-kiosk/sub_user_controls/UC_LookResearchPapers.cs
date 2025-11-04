@@ -11,6 +11,7 @@ using lib_track_kiosk.configs;
 using lib_track_kiosk.helpers;       // for GetAllResearchPapers / AllResearchPaperInfo
 using lib_track_kiosk.loading_forms; // for Loading
 using Newtonsoft.Json.Linq;
+using System.Runtime.InteropServices;
 
 namespace lib_track_kiosk.sub_user_controls
 {
@@ -19,8 +20,12 @@ namespace lib_track_kiosk.sub_user_controls
         // Full dataset from backend (never mutated by filtering)
         private List<Models.ResearchPaper> _allResearchPapers = new List<Models.ResearchPaper>();
 
-        // Current (possibly filtered) view
+        // Current (possibly filtered) view (subset for pagination)
         private List<Models.ResearchPaper> _researchPapers = new List<Models.ResearchPaper>();
+
+        // Pagination / "load more" config
+        private readonly int _pageSize = 50;
+        private int _displayCount = 0;
 
         private readonly List<Color> _accentColors = new List<Color>
         {
@@ -259,6 +264,7 @@ namespace lib_track_kiosk.sub_user_controls
         /// Load research papers from the backend using GetAllResearchPapers.
         /// Shows the Loading form while fetching and closes it when finished.
         /// Maps helper DTO (AllResearchPaperInfo) into the UI model (Models.ResearchPaper).
+        /// Uses pagination to avoid creating all UI controls at once.
         /// </summary>
         private async Task LoadResearchPapersAsync()
         {
@@ -294,9 +300,9 @@ namespace lib_track_kiosk.sub_user_controls
                 // GetAllResearchPapers returns List<AllResearchPaperInfo>
                 var fetched = await GetAllResearchPapers.GetAllAsync();
 
+                // Map AllResearchPaperInfo -> Models.ResearchPaper (full lists stored, but we will only render a page)
                 if (fetched != null && fetched.Count > 0)
                 {
-                    // Map AllResearchPaperInfo -> Models.ResearchPaper
                     _allResearchPapers = fetched.Select(r => new Models.ResearchPaper
                     {
                         Id = r.ResearchPaperId,
@@ -309,21 +315,26 @@ namespace lib_track_kiosk.sub_user_controls
                         ShelfLocation = string.IsNullOrWhiteSpace(r.ShelfLocation) ? "N/A" : r.ShelfLocation
                     }).ToList();
 
-                    // initial view = full dataset
-                    _researchPapers = new List<Models.ResearchPaper>(_allResearchPapers);
+                    // pagination initial display count
+                    _displayCount = Math.Min(_pageSize, _allResearchPapers.Count);
+                    _researchPapers = _allResearchPapers.Take(_displayCount).ToList();
                 }
                 else
                 {
                     // no results — clear UI list
                     _allResearchPapers = new List<Models.ResearchPaper>();
                     _researchPapers = new List<Models.ResearchPaper>();
+                    _displayCount = 0;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️ Error loading research papers: {ex.Message}");
+
+                // keep state consistent on error
                 _allResearchPapers = new List<Models.ResearchPaper>();
                 _researchPapers = new List<Models.ResearchPaper>();
+                _displayCount = 0;
             }
             finally
             {
@@ -347,13 +358,31 @@ namespace lib_track_kiosk.sub_user_controls
                 }
             }
 
-            // Update UI
+            // Update UI (first page)
             DisplayResearchPapers();
         }
 
         private void DisplayResearchPapers()
         {
-            research_FlowLayoutPanel.Controls.Clear();
+            // Dispose any existing controls to free native/window/GDI resources immediately
+            try
+            {
+                if (research_FlowLayoutPanel.Controls.Count > 0)
+                {
+                    var toDispose = research_FlowLayoutPanel.Controls.Cast<Control>().ToList();
+                    research_FlowLayoutPanel.Controls.Clear();
+                    foreach (var c in toDispose)
+                    {
+                        try
+                        {
+                            c.Dispose();
+                        }
+                        catch { /* ignore */ }
+                    }
+                }
+            }
+            catch { /* best-effort */ }
+
             research_FlowLayoutPanel.AutoScroll = true;
             research_FlowLayoutPanel.WrapContents = true;
             research_FlowLayoutPanel.FlowDirection = FlowDirection.LeftToRight;
@@ -372,6 +401,12 @@ namespace lib_track_kiosk.sub_user_controls
 
             foreach (var paper in _researchPapers)
                 AddResearchCard(paper);
+
+            // If there are more items available, show a "Load more" button at the end
+            if (_allResearchPapers != null && _displayCount < _allResearchPapers.Count)
+            {
+                AddLoadMoreButton(_allResearchPapers.Count - _displayCount);
+            }
         }
 
         // Adds a centered "no results" message into the FlowLayoutPanel
@@ -413,6 +448,44 @@ namespace lib_track_kiosk.sub_user_controls
             {
                 // Swallow errors for UI fallback; still leave flow empty
                 Console.WriteLine($"⚠️ Failed to add 'no results' message: {ex.Message}");
+            }
+        }
+
+        // Adds a small Load More button into the flow layout so we don't create every card at once
+        private void AddLoadMoreButton(int remainingCount)
+        {
+            try
+            {
+                var btn = new Button
+                {
+                    Text = $"Load more ({remainingCount} more)",
+                    Width = 200,
+                    Height = 36,
+                    Margin = new Padding(12),
+                    BackColor = Color.WhiteSmoke,
+                    FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand
+                };
+
+                btn.Click += (s, e) =>
+                {
+                    // increase display count and refresh
+                    int next = Math.Min(_displayCount + _pageSize, _allResearchPapers.Count);
+                    _displayCount = next;
+                    _researchPapers = _allResearchPapers.Take(_displayCount).ToList();
+
+                    // refresh UI
+                    DisplayResearchPapers();
+
+                    // ensure focus stays reasonable
+                    try { btn.Dispose(); } catch { }
+                };
+
+                research_FlowLayoutPanel.Controls.Add(btn);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Failed to add Load more button: {ex.Message}");
             }
         }
 
@@ -514,9 +587,28 @@ namespace lib_track_kiosk.sub_user_controls
                 Text = paper.Year > 0 ? paper.Year.ToString() : "N/A"
             };
 
-            year.Region = System.Drawing.Region.FromHrgn(
-                NativeMethods.CreateRoundRectRgn(0, 0, year.Width, year.Height, 8, 8)
-            );
+            // Create a rounded region for the year label and free the native HRGN handle.
+            try
+            {
+                IntPtr hrgn = NativeMethods.CreateRoundRectRgn(0, 0, Math.Max(1, year.Width), Math.Max(1, year.Height), 8, 8);
+                if (hrgn != IntPtr.Zero)
+                {
+                    try
+                    {
+                        year.Region = System.Drawing.Region.FromHrgn(hrgn);
+                    }
+                    catch
+                    {
+                        // ignore region failure; don't block UI creation
+                    }
+                    finally
+                    {
+                        // Free the native HRGN to avoid leaking GDI objects
+                        try { NativeMethods.DeleteObject(hrgn); } catch { /* ignore */ }
+                    }
+                }
+            }
+            catch { /* best-effort */ }
 
             // Selection visual setter (no hover visuals)
             void SetCardSelectedVisual(Panel p, bool selected)
@@ -622,19 +714,21 @@ namespace lib_track_kiosk.sub_user_controls
         /// Filters the full dataset (_allResearchPapers) by the query string.
         /// Searches in Title, Authors and Abstract, DepartmentName and Year.
         /// Also applies the selected department filter (if any).
+        /// Uses pagination to avoid rendering all controls.
         /// </summary>
         private void ApplySearchFilter(string query)
         {
             if (string.IsNullOrWhiteSpace(query) && !_selectedDepartmentId.HasValue)
             {
-                // Reset to full list
-                _researchPapers = new List<Models.ResearchPaper>(_allResearchPapers);
+                // Reset to full list (page 1)
+                _displayCount = Math.Min(_pageSize, _allResearchPapers.Count);
+                _researchPapers = new List<Models.ResearchPaper>(_allResearchPapers.Take(_displayCount));
             }
             else
             {
                 string q = (query ?? "").Trim();
                 // case-insensitive contains checks and optional department filter
-                _researchPapers = _allResearchPapers.Where(p =>
+                var filtered = _allResearchPapers.Where(p =>
                     (!_selectedDepartmentId.HasValue || (p.DepartmentId.HasValue && p.DepartmentId.Value == _selectedDepartmentId.Value)) &&
                     (
                         string.IsNullOrEmpty(q) ||
@@ -645,6 +739,10 @@ namespace lib_track_kiosk.sub_user_controls
                          p.Year.ToString().IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
                     )
                 ).ToList();
+
+                // apply pagination to filtered results
+                _displayCount = Math.Min(_pageSize, filtered.Count);
+                _researchPapers = filtered.Take(_displayCount).ToList();
             }
 
             // clear selection and abstract when filtering
@@ -694,12 +792,16 @@ namespace lib_track_kiosk.sub_user_controls
 
         private static class NativeMethods
         {
-            [System.Runtime.InteropServices.DllImport("Gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
+            [DllImport("Gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
             public static extern IntPtr CreateRoundRectRgn(
                 int nLeftRect, int nTopRect,
                 int nRightRect, int nBottomRect,
                 int nWidthEllipse, int nHeightEllipse
             );
+
+            [DllImport("gdi32.dll", EntryPoint = "DeleteObject")]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool DeleteObject(IntPtr hObject);
         }
     }
 }

@@ -2,12 +2,14 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
     <RootNamespace>lib_track_kiosk</RootNamespace>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Platforms>AnyCPU;x86</Platforms>
+    <NuGetAuditMode>direct</NuGetAuditMode>
+    <NuGetAuditLevel>critical</NuGetAuditLevel>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,7 +27,7 @@
 
   <ItemGroup>
     <Reference Include="libzkfpcsharp">
-      <HintPath>C:\Users\EUGINE\Downloads\zkfinger_sdk_v10.0-windows-lite-zk9500\ZKFinger SDK V10.0-Windows-Lite\C#\Demo\libzkfpcsharp.dll</HintPath>
+      <HintPath>E:\Library-Tracker\lib-track-kiosk\lib-track-kiosk\bin\x86\Debug\net8.0-windows7.0\libzkfpcsharp.dll</HintPath>
     </Reference>
   </ItemGroup>
 

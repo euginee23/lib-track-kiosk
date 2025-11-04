@@ -11,7 +11,8 @@ namespace lib_track_kiosk.helpers
 {
     /// <summary>
     /// Helper to fetch research papers from the backend.
-    /// Mirrors the structure of GetAllBooks but tailored to the research-papers endpoint.
+    /// This version does NOT decode base64 -> Image for every row (avoids holding many GDI objects).
+    /// Keep QRBase64 and decode on demand when the user requests details.
     /// </summary>
     internal class GetAllResearchPapers
     {
@@ -20,7 +21,7 @@ namespace lib_track_kiosk.helpers
 
         /// <summary>
         /// Fetches research papers. Optional comma-separated ids can be supplied (same as server supports).
-        /// Returns a list of AllResearchPaperInfo. QR code (if present) will be decoded into an Image and the raw base64 preserved.
+        /// This method intentionally does not create Image instances for each row (keeps QRBase64 only).
         /// </summary>
         /// <param name="ids">Optional comma-separated ids query parameter to filter results.</param>
         public static async Task<List<AllResearchPaperInfo>> GetAllAsync(string ids = null)
@@ -32,7 +33,6 @@ namespace lib_track_kiosk.helpers
                 string apiUrl = $"{baseApiUrl}/";
                 if (!string.IsNullOrWhiteSpace(ids))
                 {
-                    // encode ids for query string safety
                     apiUrl = $"{apiUrl}?ids={Uri.EscapeDataString(ids)}";
                 }
 
@@ -74,13 +74,13 @@ namespace lib_track_kiosk.helpers
                             ShelfRow = obj["shelf_row"]?.ToString()
                         };
 
-                        // server returns research_paper_qr as base64 string (or null)
+                        // Keep raw base64 only — do NOT decode to Image here.
                         var qrToken = obj["research_paper_qr"];
                         if (qrToken != null && qrToken.Type == JTokenType.String)
                         {
                             string base64 = qrToken.ToString();
                             paper.QRBase64 = string.IsNullOrWhiteSpace(base64) ? null : base64;
-                            paper.QRImage = DecodeBase64Image(base64);
+                            paper.QRImage = null; // decode on demand
                         }
                         else
                         {
@@ -88,7 +88,7 @@ namespace lib_track_kiosk.helpers
                             paper.QRImage = null;
                         }
 
-                        // Compose a shelf location string similar to books
+                        // Compose shelf location string
                         paper.ShelfLocation = $"{paper.ShelfNumber ?? "N/A"}-{paper.ShelfColumn ?? "N/A"}-{paper.ShelfRow ?? "N/A"}";
 
                         result.Add(paper);
@@ -109,9 +109,10 @@ namespace lib_track_kiosk.helpers
 
         /// <summary>
         /// Decodes a base64 (or data URI) string to an Image instance. Returns null on failure.
-        /// Clones the image before returning to avoid MemoryStream lifetime issues.
+        /// This method is kept for on-demand decoding; call it only when you need to display a single QR.
+        /// The caller is responsible for disposing the returned Image.
         /// </summary>
-        private static Image DecodeBase64Image(string base64OrDataUri)
+        public static Image DecodeBase64Image(string base64OrDataUri)
         {
             if (string.IsNullOrWhiteSpace(base64OrDataUri)) return null;
 
@@ -128,7 +129,7 @@ namespace lib_track_kiosk.helpers
                 byte[] bytes = Convert.FromBase64String(base64);
                 using var ms = new MemoryStream(bytes);
                 using var srcImg = Image.FromStream(ms);
-                return (Image)srcImg.Clone();
+                return (Image)srcImg.Clone(); // caller must Dispose
             }
             catch (FormatException fe)
             {
@@ -143,10 +144,6 @@ namespace lib_track_kiosk.helpers
         }
     }
 
-    /// <summary>
-    /// Simple DTO for research papers consumed by the UI.
-    /// Renamed to AllResearchPaperInfo to avoid ambiguity with lib_track_kiosk.models.ResearchPaper.
-    /// </summary>
     internal class AllResearchPaperInfo
     {
         public int ResearchPaperId { get; set; }
@@ -155,13 +152,12 @@ namespace lib_track_kiosk.helpers
         public string Abstract { get; set; }
         public string Price { get; set; }
         public string QRBase64 { get; set; }
-        public Image QRImage { get; set; }
+        public Image QRImage { get; set; } // null by default; decode on demand
         public string CreatedAt { get; set; }
         public int? DepartmentId { get; set; }
         public string DepartmentName { get; set; }
         public string Authors { get; set; }
 
-        // shelf fields and composed location
         public string ShelfNumber { get; set; }
         public string ShelfColumn { get; set; }
         public string ShelfRow { get; set; }

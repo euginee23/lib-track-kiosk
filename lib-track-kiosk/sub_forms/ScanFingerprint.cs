@@ -5,8 +5,10 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace lib_track_kiosk.sub_forms
@@ -20,9 +22,12 @@ namespace lib_track_kiosk.sub_forms
         private byte[] FPBuffer;
         private byte[] CapTmp;
         private int cbCapTmp = 2048;
-        private List<(int userId, byte[] template)> fingerprintTemplates = new();
 
+        private List<(int userId, byte[] template)> fingerprintTemplates = new();
         public int? ScannedUserId { get; private set; }
+
+        private bool isCapturing = false;
+        private Thread captureThread;
 
         public ScanFingerprint()
         {
@@ -31,9 +36,25 @@ namespace lib_track_kiosk.sub_forms
             this.FormClosing += ScanFingerprint_FormClosing;
         }
 
-        private void ScanFingerprint_Load(object sender, EventArgs e)
+        // -----------------------------------------------
+        // FORM LOAD
+        // -----------------------------------------------
+        private async void ScanFingerprint_Load(object sender, EventArgs e)
         {
-            InitializeFingerprint();
+            try
+            {
+                // Fixes crash caused by libzkfpcsharp looking in wrong folder
+                Environment.CurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
+
+                UpdateStatus("🔄 Initializing fingerprint system...");
+                await Task.Delay(500); // allow initial startup
+
+                await InitializeFingerprintAsync();
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus("⚠️ Load error: " + ex.Message);
+            }
         }
 
         private void ScanFingerprint_FormClosing(object sender, FormClosingEventArgs e)
@@ -41,35 +62,55 @@ namespace lib_track_kiosk.sub_forms
             CleanupFingerprint();
         }
 
-        private void InitializeFingerprint()
+        // -----------------------------------------------
+        // INITIALIZATION SEQUENCE (with delays)
+        // -----------------------------------------------
+        private async Task InitializeFingerprintAsync()
         {
             try
             {
                 zkfp2.Terminate();
+                await Task.Delay(300); // ensure previous context closed
 
                 int ret = zkfp2.Init();
-                if (ret == zkfperrdef.ZKFP_ERR_OK)
+                if (ret != zkfperrdef.ZKFP_ERR_OK)
                 {
-                    int nCount = zkfp2.GetDeviceCount();
-                    if (nCount > 0)
-                    {
-                        OpenFingerprintDevice(0);
-                        LoadFingerprintTemplates();
-                        UpdateStatus($"✅ Device ready. {fingerprintTemplates.Count} fingerprints loaded.");
-                        StartCaptureThread();
-                    }
-                    else
-                        UpdateStatus("❌ No fingerprint device connected!");
+                    UpdateStatus($"❌ Fingerprint SDK init failed (ret={ret})");
+                    return;
                 }
-                else
-                    UpdateStatus($"❌ Fingerprint SDK init failed, ret={ret}");
+
+                await Task.Delay(400); // allow SDK to load devices
+
+                int nCount = zkfp2.GetDeviceCount();
+                if (nCount <= 0)
+                {
+                    UpdateStatus("❌ No fingerprint device connected!");
+                    zkfp2.Terminate();
+                    return;
+                }
+
+                UpdateStatus("🔌 Opening fingerprint device...");
+                await Task.Delay(300);
+
+                OpenFingerprintDevice(0);
+
+                UpdateStatus("📦 Loading fingerprint templates...");
+                await Task.Delay(500);
+
+                LoadFingerprintTemplates();
+
+                UpdateStatus($"✅ Device ready. {fingerprintTemplates.Count} fingerprints loaded.");
+                StartCaptureThread();
             }
             catch (Exception ex)
             {
-                UpdateStatus("⚠️ Init error: " + ex.Message);
+                UpdateStatus("⚠️ Initialization error: " + ex.Message);
             }
         }
 
+        // -----------------------------------------------
+        // DEVICE OPENING
+        // -----------------------------------------------
         private void OpenFingerprintDevice(int deviceIndex)
         {
             mDevHandle = zkfp2.OpenDevice(deviceIndex);
@@ -98,9 +139,12 @@ namespace lib_track_kiosk.sub_forms
             FPBuffer = new byte[mfpWidth * mfpHeight];
             CapTmp = new byte[2048];
 
-            UpdateStatus($"📸 Device ready (Width={mfpWidth}, Height={mfpHeight})");
+            UpdateStatus($"📸 Device opened successfully. Width={mfpWidth}, Height={mfpHeight}");
         }
 
+        // -----------------------------------------------
+        // LOAD TEMPLATES
+        // -----------------------------------------------
         private void LoadFingerprintTemplates()
         {
             fingerprintTemplates.Clear();
@@ -129,37 +173,53 @@ namespace lib_track_kiosk.sub_forms
             }
         }
 
+        // -----------------------------------------------
+        // CAPTURE THREAD
+        // -----------------------------------------------
         private void StartCaptureThread()
         {
-            Thread captureThread = new Thread(() =>
+            if (isCapturing) return;
+            isCapturing = true;
+
+            captureThread = new Thread(() =>
             {
-                while (true)
+                try
                 {
-                    if (mDevHandle == IntPtr.Zero)
-                        break;
+                    // allow device warm-up
+                    Thread.Sleep(1000);
 
-                    cbCapTmp = 2048;
-                    int ret = zkfp2.AcquireFingerprint(mDevHandle, FPBuffer, CapTmp, ref cbCapTmp);
-                    if (ret == zkfp.ZKFP_ERR_OK)
+                    while (isCapturing)
                     {
-                        Bitmap bmp = BufferToBitmap(FPBuffer, mfpWidth, mfpHeight);
-                        this.Invoke((Action)(() => finger_picturebox.Image = bmp));
-
-                        byte[] template = new byte[cbCapTmp];
-                        Array.Copy(CapTmp, template, cbCapTmp);
-
-                        int userId = IdentifyUser(template);
-                        if (userId > 0)
-                        {
-                            this.Invoke((Action)(() => OnUserIdentified(userId)));
+                        if (mDevHandle == IntPtr.Zero)
                             break;
-                        }
-                        else
+
+                        cbCapTmp = 2048;
+                        int ret = zkfp2.AcquireFingerprint(mDevHandle, FPBuffer, CapTmp, ref cbCapTmp);
+                        if (ret == zkfp.ZKFP_ERR_OK)
                         {
-                            this.Invoke((Action)(() => UpdateStatus("❌ No match found. Try again.")));
+                            Bitmap bmp = BufferToBitmap(FPBuffer, mfpWidth, mfpHeight);
+                            this.Invoke((Action)(() => finger_picturebox.Image = bmp));
+
+                            byte[] template = new byte[cbCapTmp];
+                            Array.Copy(CapTmp, template, cbCapTmp);
+
+                            int userId = IdentifyUser(template);
+                            if (userId > 0)
+                            {
+                                this.Invoke((Action)(() => OnUserIdentified(userId)));
+                                break;
+                            }
+                            else
+                            {
+                                this.Invoke((Action)(() => UpdateStatus("❌ No match found. Try again.")));
+                            }
                         }
+                        Thread.Sleep(250);
                     }
-                    Thread.Sleep(300);
+                }
+                catch (Exception ex)
+                {
+                    this.Invoke((Action)(() => UpdateStatus("⚠️ Capture error: " + ex.Message)));
                 }
             })
             {
@@ -168,6 +228,9 @@ namespace lib_track_kiosk.sub_forms
             captureThread.Start();
         }
 
+        // -----------------------------------------------
+        // MATCH FINGERPRINT
+        // -----------------------------------------------
         private int IdentifyUser(byte[] capturedTemplate)
         {
             int bestScore = 0;
@@ -188,20 +251,26 @@ namespace lib_track_kiosk.sub_forms
 
         private void OnUserIdentified(int userId)
         {
-            // Set the scanned user id and update status, then close immediately.
             ScannedUserId = userId;
             UpdateStatus($"✅ Match found (User ID: {userId})");
+            isCapturing = false;
 
-            // Do not show any MessageBox or interactive dialog here.
-            // Close the form and return DialogResult.OK to the caller.
             this.DialogResult = DialogResult.OK;
             this.Close();
         }
 
+        // -----------------------------------------------
+        // CLEANUP
+        // -----------------------------------------------
         private void CleanupFingerprint()
         {
             try
             {
+                isCapturing = false;
+
+                if (captureThread != null && captureThread.IsAlive)
+                    captureThread.Join(500);
+
                 if (mDevHandle != IntPtr.Zero)
                 {
                     zkfp2.CloseDevice(mDevHandle);
@@ -223,6 +292,9 @@ namespace lib_track_kiosk.sub_forms
             }
         }
 
+        // -----------------------------------------------
+        // HELPERS
+        // -----------------------------------------------
         private void UpdateStatus(string text)
         {
             if (status_label.InvokeRequired)
@@ -259,6 +331,7 @@ namespace lib_track_kiosk.sub_forms
             try
             {
                 ScannedUserId = null;
+                isCapturing = false;
                 UpdateStatus("❌ Scan canceled by user.");
 
                 CleanupFingerprint();

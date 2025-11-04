@@ -26,6 +26,8 @@ namespace lib_track_kiosk.user_control_forms
 
         private UC_GenerateReceipt receiptUCInstance;
 
+        private static readonly HttpClient sharedHttpClient = new HttpClient();
+
         public UC_Borrow()
         {
             InitializeComponent();
@@ -400,10 +402,13 @@ namespace lib_track_kiosk.user_control_forms
             // ADD SCANNED RESEARCH PAPERS  
             borrowRequest.ResearchPaperIds.AddRange(scannedResearchPapers);
 
-            // ATTACH RECEIPT IMAGE
-            string receiptPath = GenerateReceiptImageFromPanel();
-            if (!string.IsNullOrEmpty(receiptPath))
-                borrowRequest.ReceiptFilePath = receiptPath;
+            // ATTACH RECEIPT IMAGE (one-step: send local file with /borrow)
+            string tempReceiptPath = GenerateReceiptImageFromPanel();
+            if (!string.IsNullOrEmpty(tempReceiptPath))
+            {
+                // Assign local temp file path so BorrowFetcher will attach it as file content.
+                borrowRequest.ReceiptFilePath = tempReceiptPath;
+            }
 
             try
             {
@@ -438,6 +443,19 @@ namespace lib_track_kiosk.user_control_forms
             {
                 MessageBox.Show($"🔥 Unexpected error: {ex.Message}");
             }
+            finally
+            {
+                // Clean up local temp file AFTER the borrow request completes so the file is available to be attached.
+                try
+                {
+                    if (!string.IsNullOrEmpty(tempReceiptPath) && File.Exists(tempReceiptPath))
+                        File.Delete(tempReceiptPath);
+                }
+                catch
+                {
+                    // ignore cleanup errors
+                }
+            }
         }
 
         // HELPER TO GENERATE RECEIPT IMAGE
@@ -452,6 +470,164 @@ namespace lib_track_kiosk.user_control_forms
             string tempPath = Path.Combine(Path.GetTempPath(), $"Receipt_{DateTime.Now:yyyyMMddHHmmss}.jpg");
             bitmap.Save(tempPath, System.Drawing.Imaging.ImageFormat.Jpeg);
             return tempPath;
+        }
+
+        // Upload the local temp receipt image to the server upload endpoint and return the server path/url.
+        // This version is simplified and more tolerant of different JSON shapes the upload endpoint might return.
+        // It will try common locations for the returned path/url:
+        // - top-level string
+        // - root.data (string/object)
+        // - root.file.url / root.file.path / root.file.fname
+        // - root.data.file.url
+        // - root.files[0] variants
+        // If nothing is found the method throws a descriptive exception including the raw response.
+        private async Task<string> UploadReceiptImageToServerAsync(string localFilePath)
+        {
+            if (string.IsNullOrEmpty(localFilePath) || !File.Exists(localFilePath))
+                return null;
+
+            string baseUrl = API_Backend.BaseUrl?.TrimEnd('/') ?? "";
+            string uploadUrl = $"{baseUrl}/api/uploads/receipt";
+
+            using (var content = new MultipartFormDataContent())
+            {
+                byte[] fileBytes = await File.ReadAllBytesAsync(localFilePath);
+                var fileContent = new ByteArrayContent(fileBytes);
+                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+                content.Add(fileContent, "file", Path.GetFileName(localFilePath));
+
+                var resp = await sharedHttpClient.PostAsync(uploadUrl, content);
+                var respBody = await resp.Content.ReadAsStringAsync();
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    // Try to extract useful message but ultimately throw
+                    string serverMsg = respBody;
+                    try
+                    {
+                        var parsed = JObject.Parse(respBody);
+                        serverMsg = parsed.Value<string>("message") ?? parsed.Value<string>("error") ?? respBody;
+                    }
+                    catch { /* ignore */ }
+
+                    throw new Exception($"Upload failed ({(int)resp.StatusCode}): {serverMsg}");
+                }
+
+                // Defensive and simplified parsing:
+                if (string.IsNullOrWhiteSpace(respBody))
+                    throw new Exception("Upload returned an empty response body");
+
+                try
+                {
+                    var root = JObject.Parse(respBody);
+
+                    // 1) If top-level has "url" or "path" or "filePath" or "filename"
+                    string[] topLevelCandidates = { "url", "path", "filePath", "filename", "file", "location" };
+                    foreach (var key in topLevelCandidates)
+                    {
+                        var token = root[key];
+                        if (token != null)
+                        {
+                            if (token.Type == JTokenType.String)
+                            {
+                                var s = token.Value<string>();
+                                if (!string.IsNullOrWhiteSpace(s)) return s;
+                            }
+                            else if (token.Type == JTokenType.Object)
+                            {
+                                // common case: root.file = { url: "...", fname: "..." }
+                                var obj = token as JObject;
+                                var url = obj.Value<string>("url") ?? obj.Value<string>("path") ?? obj.Value<string>("fname") ?? obj.Value<string>("filename");
+                                if (!string.IsNullOrEmpty(url)) return url;
+                            }
+                        }
+                    }
+
+                    // 2) Check root["data"]
+                    var data = root["data"];
+                    if (data != null)
+                    {
+                        if (data.Type == JTokenType.String)
+                        {
+                            var s = data.Value<string>();
+                            if (!string.IsNullOrWhiteSpace(s)) return s;
+                        }
+                        else if (data.Type == JTokenType.Object)
+                        {
+                            var dataObj = data as JObject;
+                            var url = dataObj.Value<string>("url")
+                                      ?? dataObj.Value<string>("path")
+                                      ?? dataObj.Value<string>("filePath")
+                                      ?? dataObj.Value<string>("filename")
+                                      ?? dataObj.Value<string>("location");
+                            if (!string.IsNullOrEmpty(url)) return url;
+
+                            var nestedFile = dataObj["file"] as JObject;
+                            if (nestedFile != null)
+                            {
+                                var nf = nestedFile.Value<string>("url") ?? nestedFile.Value<string>("path") ?? nestedFile.Value<string>("fname") ?? nestedFile.Value<string>("filename");
+                                if (!string.IsNullOrEmpty(nf)) return nf;
+                            }
+
+                            // data could be an array
+                            if (data is JArray dataArr && dataArr.Count > 0)
+                            {
+                                var first = dataArr[0];
+                                if (first.Type == JTokenType.String)
+                                {
+                                    var s = first.Value<string>();
+                                    if (!string.IsNullOrWhiteSpace(s)) return s;
+                                }
+                                else if (first is JObject fo)
+                                {
+                                    var nf = fo.Value<string>("url") ?? fo.Value<string>("path") ?? fo.Value<string>("filename");
+                                    if (!string.IsNullOrEmpty(nf)) return nf;
+                                }
+                            }
+                        }
+                    }
+
+                    // 3) Check root["file"] directly (some upload endpoints return { file: { ... } })
+                    var fileToken = root["file"];
+                    if (fileToken != null)
+                    {
+                        if (fileToken.Type == JTokenType.String)
+                        {
+                            var s = fileToken.Value<string>();
+                            if (!string.IsNullOrWhiteSpace(s)) return s;
+                        }
+                        else if (fileToken is JObject fileObj)
+                        {
+                            var url = fileObj.Value<string>("url") ?? fileObj.Value<string>("path") ?? fileObj.Value<string>("fname") ?? fileObj.Value<string>("filename");
+                            if (!string.IsNullOrEmpty(url)) return url;
+                        }
+                    }
+
+                    // 4) Check root["files"] array
+                    var filesArr = root["files"] as JArray;
+                    if (filesArr != null && filesArr.Count > 0)
+                    {
+                        var first = filesArr[0];
+                        if (first.Type == JTokenType.String)
+                        {
+                            var s = first.Value<string>();
+                            if (!string.IsNullOrWhiteSpace(s)) return s;
+                        }
+                        else if (first is JObject fo)
+                        {
+                            var nf = fo.Value<string>("url") ?? fo.Value<string>("path") ?? fo.Value<string>("filename");
+                            if (!string.IsNullOrEmpty(nf)) return nf;
+                        }
+                    }
+
+                    // Nothing matched - include raw response for diagnostics
+                    throw new Exception($"Failed to parse upload response: no file path/url found. Raw response: {respBody}");
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Failed to parse upload response: {ex.Message}. Raw response: {respBody}");
+                }
+            }
         }
 
         // Fetch penalties for the current user and update labels:

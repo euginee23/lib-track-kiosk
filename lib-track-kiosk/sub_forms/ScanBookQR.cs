@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using ZXing;
 using ZXing.Common;
 using ZXing.Windows.Compatibility;
+using lib_track_kiosk.configs;
 
 namespace lib_track_kiosk.sub_forms
 {
@@ -34,10 +35,13 @@ namespace lib_track_kiosk.sub_forms
         private bool _decodingActive = false;
 
         // RESULT PROPERTIES
-        public string ScannedType { get; private set; } 
+        public string ScannedType { get; private set; }
         public int? ScannedBookId { get; private set; }
         public string ScannedBookNumber { get; private set; }
         public int? ScannedResearchPaperId { get; private set; }
+
+        // Use centralized backend config
+        private readonly string ApiUrl = $"{API_Backend.BaseUrl.TrimEnd('/')}/api/qr/scan";
 
         public ScanBookQR()
         {
@@ -142,24 +146,32 @@ namespace lib_track_kiosk.sub_forms
         {
             try
             {
-                string apiUrl = "http://localhost:5000/api/qr/scan";
-
-                using (var client = new HttpClient())
+                using (var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) })
                 {
                     var payload = new { qrData = qrData };
                     var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
-                    var response = await client.PostAsync(apiUrl, content);
-
-                    if (!response.IsSuccessStatusCode)
+                    HttpResponseMessage response;
+                    try
                     {
-                        status_label.Text = "❌ Backend error: " + response.ReasonPhrase;
+                        response = await client.PostAsync(ApiUrl, content);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        status_label.Text = "❌ Backend error: request timed out.";
+                        RestartScan();
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        status_label.Text = $"❌ Backend error: {ex.Message}";
                         RestartScan();
                         return;
                     }
 
                     var responseContent = await response.Content.ReadAsStringAsync();
 
+                    // Try to parse JSON even for non-success status codes to show server message
                     JsonDocument doc;
                     try
                     {
@@ -167,6 +179,14 @@ namespace lib_track_kiosk.sub_forms
                     }
                     catch
                     {
+                        // If parsing fails and status not success, show reason phrase
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            status_label.Text = $"❌ Backend error: {response.ReasonPhrase}";
+                            RestartScan();
+                            return;
+                        }
+
                         status_label.Text = "❌ JSON parsing error: invalid backend response.";
                         RestartScan();
                         return;
@@ -176,12 +196,21 @@ namespace lib_track_kiosk.sub_forms
                     {
                         var root = doc.RootElement;
 
-                        // CHECK SUCCESS
-                        if (!root.TryGetProperty("success", out var successEl) || successEl.ValueKind != JsonValueKind.True)
+                        // CHECK SUCCESS (allow success as boolean or string "true")
+                        bool success = false;
+                        if (root.TryGetProperty("success", out var successEl))
+                        {
+                            if (successEl.ValueKind == JsonValueKind.True)
+                                success = true;
+                            else if (successEl.ValueKind == JsonValueKind.String && string.Equals(successEl.GetString(), "true", StringComparison.OrdinalIgnoreCase))
+                                success = true;
+                        }
+
+                        if (!success)
                         {
                             string msg = root.TryGetProperty("message", out var msgEl) && msgEl.ValueKind == JsonValueKind.String
                                 ? msgEl.GetString()
-                                : "Unknown Error";
+                                : (response.IsSuccessStatusCode ? "Unknown Error" : response.ReasonPhrase);
                             status_label.Text = $"⚠️ Error: {msg}";
                             RestartScan();
                             return;
@@ -199,6 +228,7 @@ namespace lib_track_kiosk.sub_forms
                             return;
                         }
 
+                        // Safely extract qrInfo (which may contain bookId/bookNumber or researchPaperId)
                         int? bookId = null;
                         string bookNumber = null;
                         int? researchPaperId = null;
@@ -215,9 +245,13 @@ namespace lib_track_kiosk.sub_forms
 
                             if (qrInfoEl.TryGetProperty("bookNumber", out var bnEl))
                             {
-                                bookNumber = bnEl.ValueKind == JsonValueKind.String
-                                    ? bnEl.GetString()
-                                    : bnEl.GetRawText();
+                                // bookNumber may be number or string; convert to string
+                                if (bnEl.ValueKind == JsonValueKind.Number && bnEl.TryGetInt32(out var bnNum))
+                                    bookNumber = bnNum.ToString();
+                                else if (bnEl.ValueKind == JsonValueKind.String)
+                                    bookNumber = bnEl.GetString();
+                                else
+                                    bookNumber = bnEl.GetRawText();
                             }
 
                             if (qrInfoEl.TryGetProperty("researchPaperId", out var rpEl))
@@ -236,7 +270,24 @@ namespace lib_track_kiosk.sub_forms
                             ScannedBookId = bookId;
                             ScannedBookNumber = bookNumber;
                             ScannedResearchPaperId = null;
-                            status_label.Text = $"📘 Type: Book\nID: {bookId}\nNumber: {bookNumber}";
+
+                            // Try to extract book info for nicer status message (book title and cover URL may be available)
+                            string bookTitle = null;
+                            string bookCoverUrl = null;
+                            if (dataEl.TryGetProperty("book", out var bookEl) && bookEl.ValueKind == JsonValueKind.Object)
+                            {
+                                if (bookEl.TryGetProperty("book_title", out var bt) && bt.ValueKind == JsonValueKind.String)
+                                    bookTitle = bt.GetString();
+                                if (bookEl.TryGetProperty("book_cover", out var bc) && bc.ValueKind == JsonValueKind.String)
+                                    bookCoverUrl = bc.GetString();
+                            }
+
+                            var msg = $"📘 Book scanned";
+                            if (bookTitle != null) msg += $": {bookTitle}";
+                            if (bookId.HasValue) msg += $"\nID: {bookId}";
+                            if (!string.IsNullOrEmpty(bookNumber)) msg += $"\nNumber: {bookNumber}";
+                            if (!string.IsNullOrEmpty(bookCoverUrl)) msg += $"\nCover: {bookCoverUrl}";
+                            status_label.Text = msg;
                         }
                         else if (string.Equals(type, "research_paper", StringComparison.OrdinalIgnoreCase))
                         {
@@ -244,7 +295,18 @@ namespace lib_track_kiosk.sub_forms
                             ScannedResearchPaperId = researchPaperId;
                             ScannedBookId = null;
                             ScannedBookNumber = null;
-                            status_label.Text = $"📄 Type: Research Paper\nID: {researchPaperId}";
+
+                            string paperTitle = null;
+                            if (dataEl.TryGetProperty("researchPaper", out var rpEl) && rpEl.ValueKind == JsonValueKind.Object)
+                            {
+                                if (rpEl.TryGetProperty("research_title", out var rt) && rt.ValueKind == JsonValueKind.String)
+                                    paperTitle = rt.GetString();
+                            }
+
+                            var msg = $"📄 Research paper scanned";
+                            if (paperTitle != null) msg += $": {paperTitle}";
+                            if (researchPaperId.HasValue) msg += $"\nID: {researchPaperId}";
+                            status_label.Text = msg;
                         }
                         else
                         {
@@ -254,6 +316,7 @@ namespace lib_track_kiosk.sub_forms
                             return;
                         }
 
+                        // small delay so user can read the status_label
                         await Task.Delay(700);
                         StopCamera();
                         this.DialogResult = DialogResult.OK;

@@ -44,12 +44,44 @@ namespace lib_track_kiosk.user_control_forms
                 copiesAvailable_lbl.Text = book.AvailableCopies.ToString();
 
                 // 🖼️ Handle cover image
-                if (book.CoverImage != null)
+                // The backend now returns a full URL for the book cover (book_cover).
+                // BookFetcher should expose that as book.CoverUrl (string). If it still
+                // provides a Bitmap in book.CoverImage, that will continue to work.
+                if (!string.IsNullOrWhiteSpace(book.CoverUrl))
                 {
+                    // If a URL is provided, set ImageLocation so WinForms loads it asynchronously.
+                    // Clear any existing Image to avoid locking the file/stream.
+                    if (cover_pbx.Image != null)
+                    {
+                        var prev = cover_pbx.Image;
+                        cover_pbx.Image = null;
+                        prev.Dispose();
+                    }
+
+                    cover_pbx.ImageLocation = book.CoverUrl;
+                }
+                else if (book.CoverImage != null)
+                {
+                    // Backwards-compatible: if BookFetcher still returns an Image, use it.
+                    if (cover_pbx.Image != null)
+                    {
+                        var prev = cover_pbx.Image;
+                        cover_pbx.Image = null;
+                        prev.Dispose();
+                    }
+
                     cover_pbx.Image = book.CoverImage;
                 }
                 else
                 {
+                    // Fallback local "no cover" image
+                    if (cover_pbx.Image != null)
+                    {
+                        var prev = cover_pbx.Image;
+                        cover_pbx.Image = null;
+                        prev.Dispose();
+                    }
+
                     cover_pbx.ImageLocation = @"E:\Library-Tracker\lib-track-kiosk\images\no-cover.png";
                 }
 
