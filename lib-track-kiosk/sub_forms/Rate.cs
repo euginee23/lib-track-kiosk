@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using lib_track_kiosk.configs;
+using lib_track_kiosk.helpers;
 
 namespace lib_track_kiosk.sub_forms
 {
@@ -22,9 +23,65 @@ namespace lib_track_kiosk.sub_forms
         // on-screen keyboard helper for the comment richtextbox
         private OnScreenKeyboard _osk;
 
-        public Rate()
+        // optional rating target details
+        private readonly int _ratingUserId;
+        private readonly string _ratingItemType;
+        private readonly int? _ratingItemId;
+        private readonly string _ratingItemTitle;
+
+        // Default parameterless constructor used by designer and other callers
+        public Rate() : this(0, null, null, null) { }
+
+        // New constructor that allows passing the user and item to rate
+        public Rate(int userId, string itemType, int? itemId, string itemTitle)
         {
             InitializeComponent();
+
+            _ratingUserId = userId;
+            _ratingItemType = itemType;
+            _ratingItemId = itemId;
+            _ratingItemTitle = itemTitle;
+
+            // set window title to show the item being rated (if available)
+            try
+            {
+                var labelPart = !string.IsNullOrWhiteSpace(_ratingItemTitle)
+                    ? _ratingItemTitle
+                    : (_ratingItemId.HasValue ? _ratingItemId.Value.ToString() : "Item");
+                this.Text = $"Rate {_ratingItemType ?? "Item"} - {labelPart}";
+            }
+            catch { /* ignore title setting */ }
+
+            // Display the passed item details in the bookRsearchDisplay_rtbx if present
+            try
+            {
+                if (bookRsearchDisplay_rtbx != null)
+                {
+                    var parts = new List<string>();
+
+                    if (!string.IsNullOrWhiteSpace(_ratingItemType))
+                        parts.Add($"Type: {_ratingItemType}");
+
+                    if (!string.IsNullOrWhiteSpace(_ratingItemTitle))
+                        parts.Add($"Title: {_ratingItemTitle}");
+
+                    if (_ratingItemId.HasValue)
+                        parts.Add($"ID: {_ratingItemId.Value}");
+
+                    if (_ratingUserId > 0)
+                        parts.Add($"User ID: {_ratingUserId}");
+
+                    // Join with new lines and show in the richtextbox
+                    bookRsearchDisplay_rtbx.Text = parts.Count > 0 ? string.Join(Environment.NewLine, parts) : "Item information not available";
+                    bookRsearchDisplay_rtbx.ReadOnly = true;
+                    bookRsearchDisplay_rtbx.SelectionStart = 0;
+                    bookRsearchDisplay_rtbx.SelectionLength = 0;
+                }
+            }
+            catch
+            {
+                // ignore any display errors
+            }
 
             // instantiate on-screen keyboard helper (can be configured via constructor if desired)
             try
@@ -52,15 +109,60 @@ namespace lib_track_kiosk.sub_forms
             {
                 if (comment_rtbx != null)
                 {
+                    // Make the comment box not be the initial active control.
+                    // Keep TabStop false initially so keyboard won't be triggered by programmatic focus or tabbing on show.
+                    // The user click handler will enable TabStop and focus the control when the user intentionally interacts with it.
+                    comment_rtbx.TabStop = false;
+
                     comment_rtbx.GotFocus += Comment_Rtbx_GotFocus;
                     comment_rtbx.LostFocus += Comment_Rtbx_LostFocus;
                     comment_rtbx.Click += Comment_Rtbx_Click;
+                    // Close keyboard when Enter is pressed on the comment box (covers physical and on-screen keyboard)
+                    comment_rtbx.KeyDown += Comment_Rtbx_KeyDown;
                 }
             }
             catch { /* ignore */ }
 
             // ensure we clean up resources when the form is disposed
             this.Disposed += Rate_Disposed;
+
+            // Attach Shown event to ensure focus is set after the form is displayed.
+            // Doing focus moves in Shown (and via BeginInvoke) reliably overrides any designer-assigned initial focus.
+            this.Shown += Rate_Shown;
+        }
+
+        // Ensure that when the form is shown the initial focus is placed on a non-text control so the OS on-screen keyboard
+        // does not pop up automatically. Using BeginInvoke ensures the focus call happens after WinForms finishes its own focus setup.
+        private void Rate_Shown(object sender, EventArgs e)
+        {
+            try
+            {
+                this.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        if (_starLabels != null && _starLabels.Count > 0)
+                        {
+                            _starLabels[0].Focus();
+                        }
+                        else if (submit_btn != null && submit_btn.CanFocus)
+                        {
+                            submit_btn.Focus();
+                        }
+                        else if (close_btn != null && close_btn.CanFocus)
+                        {
+                            close_btn.Focus();
+                        }
+                        else
+                        {
+                            // Fallback: clear active control to avoid focusing a text box
+                            this.ActiveControl = null;
+                        }
+                    }
+                    catch { /* ignore focus errors */ }
+                }));
+            }
+            catch { /* ignore */ }
         }
 
         private void InitializeStarSelection()
@@ -296,7 +398,8 @@ namespace lib_track_kiosk.sub_forms
             }
         }
 
-        private void submit_btn_Click(object sender, EventArgs e)
+        // Submit button now sends rating to backend if an item and user are present
+        private async void submit_btn_Click(object sender, EventArgs e)
         {
             try
             {
@@ -310,29 +413,75 @@ namespace lib_track_kiosk.sub_forms
                 }
                 catch { comment = string.Empty; }
 
-                // Compose message including the emoji/text shown in the form
-                string ratingText = _ratingMessageLbl?.Text ?? (stars == 0 ? "No rating" : $"{stars}/5");
-
-                var msg = $"You rated {stars} star{(stars == 1 ? "" : "s")}.";
-                msg += Environment.NewLine + Environment.NewLine + $"Feedback: {ratingText}";
-
-                if (!string.IsNullOrEmpty(comment))
+                // require at least one star to submit
+                if (stars <= 0)
                 {
-                    msg += Environment.NewLine + Environment.NewLine + "Comment:" + Environment.NewLine + comment;
+                    MessageBox.Show(this, "Please select a star rating (1–5) before submitting.", "Rating required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Ensure keyboard is closed before showing confirmation / sending
+                TryCloseKeyboard();
+
+                // If no user or no item info, show local confirmation and exit (no server call)
+                if (_ratingUserId <= 0 || (string.IsNullOrWhiteSpace(_ratingItemType) || !_ratingItemId.HasValue))
+                {
+                    // Fallback: just show summary and close
+                    string ratingText = _ratingMessageLbl?.Text ?? $"{stars}/5";
+                    var msg = $"You rated {stars} star{(stars == 1 ? "" : "s")}.{Environment.NewLine}{Environment.NewLine}Feedback: {ratingText}{Environment.NewLine}{Environment.NewLine}";
+                    if (!string.IsNullOrEmpty(comment))
+                        msg += "Comment:" + Environment.NewLine + comment;
+                    else
+                        msg += "(No comment provided)";
+
+                    MessageBox.Show(this, msg, "Thank you for your feedback", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    this.DialogResult = DialogResult.OK;
+                    this.Close();
+                    return;
+                }
+
+                // Post to server via RateHelper, depending on item type
+                var resp = (RateHelper.ServerResponse)null;
+                try
+                {
+                    if (_ratingItemType != null && _ratingItemType.IndexOf("book", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        resp = await RateHelper.SendSingleBookRatingAsync(_ratingUserId, _ratingItemId.Value, stars, comment);
+                    }
+                    else
+                    {
+                        // default: treat as research paper
+                        resp = await RateHelper.SendSingleResearchPaperRatingAsync(_ratingUserId, _ratingItemId.Value, stars, comment);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Failed to send rating: {ex.Message}", "Network Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (resp == null)
+                {
+                    MessageBox.Show(this, "No response from server when submitting rating.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (resp.Success)
+                {
+                    MessageBox.Show(this, resp.Message ?? "Rating submitted. Thank you!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    this.DialogResult = DialogResult.OK;
+                    this.Close();
+                    return;
                 }
                 else
                 {
-                    msg += Environment.NewLine + Environment.NewLine + "(No comment provided)";
+                    // try to provide helpful message
+                    string err = resp.Message ?? "Failed to submit rating.";
+                    if (!string.IsNullOrEmpty(resp.Error))
+                        err += Environment.NewLine + resp.Error;
+                    MessageBox.Show(this, err, "Server Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    // keep form open to allow retry
                 }
-
-                // Ensure keyboard is closed before showing confirmation
-                TryCloseKeyboard();
-
-                MessageBox.Show(this, msg, "Thank you for your feedback", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                // Optionally close the dialog after submit:
-                // this.DialogResult = DialogResult.OK;
-                // this.Close();
             }
             catch (Exception ex)
             {
@@ -352,7 +501,22 @@ namespace lib_track_kiosk.sub_forms
 
         // ---------------- On-screen keyboard helpers for comment_rtbx ----------------
 
-        private void Comment_Rtbx_Click(object sender, EventArgs e) => TryOpenKeyboard();
+        // When user explicitly clicks the comment box we enable its TabStop and set focus (this prevents
+        // it from being the initial active control on form show while still allowing the user to tap it).
+        private void Comment_Rtbx_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (comment_rtbx != null)
+                {
+                    comment_rtbx.TabStop = true;
+                    comment_rtbx.Focus();
+                }
+
+                TryOpenKeyboard();
+            }
+            catch { /* ignore */ }
+        }
 
         private void Comment_Rtbx_GotFocus(object sender, EventArgs e) => TryOpenKeyboard();
 
@@ -364,6 +528,21 @@ namespace lib_track_kiosk.sub_forms
             {
                 if (!this.ContainsFocus)
                     TryCloseKeyboard();
+            }
+            catch { }
+        }
+
+        // Close keyboard when Enter is pressed in the comment box (covers both physical and on-screen keyboard Enter)
+        private void Comment_Rtbx_KeyDown(object sender, KeyEventArgs e)
+        {
+            try
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    TryCloseKeyboard();
+                    // do not suppress the Enter key since user might want a newline; hook in OnScreenKeyboard
+                    // will also close the keyboard if the OSK sends VK_RETURN.
+                }
             }
             catch { }
         }
@@ -388,6 +567,7 @@ namespace lib_track_kiosk.sub_forms
                     comment_rtbx.GotFocus -= Comment_Rtbx_GotFocus;
                     comment_rtbx.LostFocus -= Comment_Rtbx_LostFocus;
                     comment_rtbx.Click -= Comment_Rtbx_Click;
+                    comment_rtbx.KeyDown -= Comment_Rtbx_KeyDown;
                 }
             }
             catch { /* ignore */ }

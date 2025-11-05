@@ -323,6 +323,7 @@ namespace lib_track_kiosk.user_control_forms
                         {
                             scannedResearchPapers.Add(researchPaperId);
 
+                            // Use the real UC_ScannedResearchInformation from sub_user_controls
                             var researchInfoUC = new UC_ScannedResearchInformation(researchPaperId);
                             researchInfoUC.Dock = DockStyle.Fill;
                             scannedType_panel.Controls.Add(researchInfoUC);
@@ -365,10 +366,10 @@ namespace lib_track_kiosk.user_control_forms
             }
             else if (type == "Research Paper")
             {
+                // Use the real UC_ScannedResearchInformation control to show full details
                 var researchInfoUC = new UC_ScannedResearchInformation(researchPaperId: itemId);
                 researchInfoUC.Dock = DockStyle.Fill;
                 scannedType_panel.Controls.Add(researchInfoUC);
-
             }
         }
 
@@ -832,28 +833,6 @@ namespace lib_track_kiosk.user_control_forms
             catch
             {
                 // ignore
-            }
-        }
-    }
-
-    // Minimal placeholder control for scanned research paper info.
-    // The project likely has its own UC_ScannedResearchInformation control - this is a fallback if not found.
-    internal class UC_ScannedResearchInformation : Control
-    {
-        private readonly int researchPaperId;
-        public UC_ScannedResearchInformation(int researchPaperId)
-        {
-            this.researchPaperId = researchPaperId;
-            // simple visual placeholder (optional)
-            this.Paint += UC_ScannedResearchInformation_Paint;
-        }
-
-        private void UC_ScannedResearchInformation_Paint(object sender, PaintEventArgs e)
-        {
-            e.Graphics.Clear(this.BackColor);
-            using (var brush = new SolidBrush(this.ForeColor))
-            {
-                e.Graphics.DrawString($"Research ID: {researchPaperId}", this.Font, brush, new PointF(5, 5));
             }
         }
     }

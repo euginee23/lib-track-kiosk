@@ -12,6 +12,7 @@ using System.Windows.Forms;
 using System.Globalization;
 using System.Linq;
 using System.Drawing.Drawing2D;
+using System.Reflection;
 
 namespace lib_track_kiosk.user_control_forms
 {
@@ -1132,13 +1133,113 @@ namespace lib_track_kiosk.user_control_forms
                         sb.AppendLine("Returned items:");
                         foreach (var it in result.ReturnedItems)
                         {
-                            sb.AppendLine($" - [{it.ItemType}] {it.ItemTitle} (ID: {it.ItemId})");
+                            try
+                            {
+                                sb.AppendLine($" - [{GetObjectStringProp(it, "ItemType", "item_type", "type", "Item_Type")}] {GetObjectStringProp(it, "ItemTitle", "item_title", "title") ?? ""} (ID: {GetObjectIntProp(it, "ItemId", "item_id", "id")})");
+                            }
+                            catch
+                            {
+                                sb.AppendLine($" - {it.ToString()}");
+                            }
                         }
                     }
 
                     MessageBox.Show(sb.ToString(), "Return Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    // --- Show Post-Assessment Survey BEFORE returning to the welcome screen ---
+                    // --- Open Rate dialog for each returned item (if any) BEFORE PostAssessmentSurvey ---
+                    try
+                    {
+                        // If server returned explicit ReturnedItems array, iterate that and rate each element.
+                        if (result.ReturnedItems != null && result.ReturnedItems.Any())
+                        {
+                            foreach (var it in result.ReturnedItems)
+                            {
+                                try
+                                {
+                                    var itemType = GetObjectStringProp(it, "ItemType", "item_type", "type", "itemType");
+                                    var itemTitle = GetObjectStringProp(it, "ItemTitle", "item_title", "title", "itemTitle");
+                                    var itemId = GetObjectIntProp(it, "ItemId", "item_id", "id");
+
+                                    if (itemId.HasValue && !string.IsNullOrWhiteSpace(itemType) && currentUserId.HasValue)
+                                    {
+                                        // Show Rate dialog for this item (modal, sequential)
+                                        using (var rate = new Rate(currentUserId.Value, itemType, itemId, itemTitle))
+                                        {
+                                            var owner = this.FindForm();
+                                            rate.StartPosition = FormStartPosition.CenterParent;
+                                            if (owner != null)
+                                                rate.ShowDialog(owner);
+                                            else
+                                                rate.ShowDialog();
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    // If one item fails, log and continue with other items
+                                    Console.Error.WriteLine("Failed to show Rate dialog for one returned item: " + ex);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Fallback: if no ReturnedItems in server response, rate scanned items that were returned.
+                            // Rate every scanned research paper
+                            foreach (var rid in scannedResearchPapers.ToList())
+                            {
+                                try
+                                {
+                                    if (currentUserId.HasValue)
+                                    {
+                                        using (var rate = new Rate(currentUserId.Value, "Research Paper", rid, null))
+                                        {
+                                            var owner = this.FindForm();
+                                            rate.StartPosition = FormStartPosition.CenterParent;
+                                            if (owner != null)
+                                                rate.ShowDialog(owner);
+                                            else
+                                                rate.ShowDialog();
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.Error.WriteLine("Failed to show Rate dialog for scanned research paper: " + ex);
+                                }
+                            }
+
+                            // Rate every scanned book
+                            foreach (var b in scannedBooks.ToList())
+                            {
+                                try
+                                {
+                                    if (currentUserId.HasValue)
+                                    {
+                                        using (var rate = new Rate(currentUserId.Value, "Book", b.bookId, b.bookNumber))
+                                        {
+                                            var owner = this.FindForm();
+                                            rate.StartPosition = FormStartPosition.CenterParent;
+                                            if (owner != null)
+                                                rate.ShowDialog(owner);
+                                            else
+                                                rate.ShowDialog();
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.Error.WriteLine("Failed to show Rate dialog for scanned book: " + ex);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // If rating dialogs fail for any reason, log but continue to survey and navigation.
+                        Console.Error.WriteLine("Failed to show rating dialogs: " + ex);
+                    }
+
+                    // --- Show PostAssessmentSurvey last ---
                     try
                     {
                         using (var survey = new PostAssessmentSurvey())
@@ -1426,6 +1527,112 @@ namespace lib_track_kiosk.user_control_forms
             }
 
             return $"{transactionStatus}  ·  {penaltyPart}";
+        }
+
+        // -----------------------------------------------------------------------
+        // Helpers moved to class-level so they are available anywhere in the method
+        // -----------------------------------------------------------------------
+
+        // Extract string property from either a JObject or a POCO/dynamic object
+        private string GetObjectStringProp(object obj, params string[] names)
+        {
+            if (obj == null) return null;
+
+            if (obj is JObject jo)
+            {
+                foreach (var n in names)
+                {
+                    // try SelectToken first (handles nested or different casing)
+                    var v = jo.SelectToken(n, false) ?? jo.SelectToken(n.Replace("_", ""), false);
+                    if (v != null && v.Type != JTokenType.Null)
+                    {
+                        var s = v.ToString();
+                        if (!string.IsNullOrWhiteSpace(s)) return s.Trim();
+                    }
+                }
+
+                // also try properties with different casings
+                foreach (var prop in jo.Properties())
+                {
+                    foreach (var n in names)
+                    {
+                        if (string.Equals(prop.Name, n, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var s = prop.Value?.ToString();
+                            if (!string.IsNullOrWhiteSpace(s)) return s.Trim();
+                        }
+                    }
+                }
+            }
+            else
+            {
+                var t = obj.GetType();
+                foreach (var n in names)
+                {
+                    var pi = t.GetProperty(n, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                    if (pi != null)
+                    {
+                        var val = pi.GetValue(obj);
+                        if (val != null)
+                        {
+                            var s = val.ToString();
+                            if (!string.IsNullOrWhiteSpace(s)) return s.Trim();
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Extract integer property from either a JObject or a POCO/dynamic object
+        private int? GetObjectIntProp(object obj, params string[] names)
+        {
+            if (obj == null) return null;
+
+            if (obj is JObject jo)
+            {
+                foreach (var n in names)
+                {
+                    var tok = jo.SelectToken(n, false) ?? jo.SelectToken(n.Replace("_", ""), false);
+                    if (tok != null && tok.Type != JTokenType.Null)
+                    {
+                        if (int.TryParse(tok.ToString(), out var iv)) return iv;
+                        if (long.TryParse(tok.ToString(), out var lv)) return (int)lv;
+                    }
+                }
+
+                foreach (var prop in jo.Properties())
+                {
+                    foreach (var n in names)
+                    {
+                        if (string.Equals(prop.Name, n, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var s = prop.Value?.ToString();
+                            if (int.TryParse(s, out var iv)) return iv;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                var t = obj.GetType();
+                foreach (var n in names)
+                {
+                    var pi = t.GetProperty(n, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                    if (pi != null)
+                    {
+                        var val = pi.GetValue(obj);
+                        if (val != null)
+                        {
+                            if (val is int i) return i;
+                            if (val is long l) return (int)l;
+                            if (int.TryParse(val.ToString(), out var iv)) return iv;
+                        }
+                    }
+                }
+            }
+
+            return null;
         }
     }
 }

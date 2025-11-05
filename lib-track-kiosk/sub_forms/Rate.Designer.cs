@@ -28,10 +28,10 @@
         /// </summary>
         private void InitializeComponent()
         {
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges5 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges6 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges7 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges8 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges1 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges2 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges3 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
+            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges4 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             panel6 = new Panel();
             panel1 = new Panel();
             panel2 = new Panel();
@@ -42,6 +42,7 @@
             label2 = new Label();
             close_btn = new Guna.UI2.WinForms.Guna2Button();
             submit_btn = new Guna.UI2.WinForms.Guna2Button();
+            bookRsearchDisplay_rtbx = new RichTextBox();
             SuspendLayout();
             // 
             // panel6
@@ -55,9 +56,9 @@
             // panel1
             // 
             panel1.BackColor = Color.Maroon;
-            panel1.Location = new Point(0, 553);
+            panel1.Location = new Point(0, 597);
             panel1.Name = "panel1";
-            panel1.Size = new Size(1116, 25);
+            panel1.Size = new Size(1058, 25);
             panel1.TabIndex = 30;
             // 
             // panel2
@@ -73,7 +74,7 @@
             panel3.BackColor = Color.Maroon;
             panel3.Location = new Point(1033, 0);
             panel3.Name = "panel3";
-            panel3.Size = new Size(25, 585);
+            panel3.Size = new Size(25, 648);
             panel3.TabIndex = 32;
             // 
             // starSelection_flp
@@ -95,9 +96,9 @@
             // 
             // comment_rtbx
             // 
-            comment_rtbx.Location = new Point(42, 287);
+            comment_rtbx.Location = new Point(42, 394);
             comment_rtbx.Name = "comment_rtbx";
-            comment_rtbx.Size = new Size(966, 183);
+            comment_rtbx.Size = new Size(976, 134);
             comment_rtbx.TabIndex = 35;
             comment_rtbx.Text = "";
             // 
@@ -105,7 +106,7 @@
             // 
             label2.AutoSize = true;
             label2.Font = new Font("Segoe UI Semibold", 15.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label2.Location = new Point(42, 254);
+            label2.Location = new Point(42, 361);
             label2.Name = "label2";
             label2.Size = new Size(216, 30);
             label2.TabIndex = 36;
@@ -115,7 +116,7 @@
             // 
             close_btn.BorderRadius = 5;
             close_btn.BorderThickness = 1;
-            close_btn.CustomizableEdges = customizableEdges5;
+            close_btn.CustomizableEdges = customizableEdges1;
             close_btn.DisabledState.BorderColor = Color.DarkGray;
             close_btn.DisabledState.CustomBorderColor = Color.DarkGray;
             close_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
@@ -123,9 +124,9 @@
             close_btn.FillColor = Color.FromArgb(192, 0, 0);
             close_btn.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
             close_btn.ForeColor = Color.White;
-            close_btn.Location = new Point(726, 496);
+            close_btn.Location = new Point(737, 544);
             close_btn.Name = "close_btn";
-            close_btn.ShadowDecoration.CustomizableEdges = customizableEdges6;
+            close_btn.ShadowDecoration.CustomizableEdges = customizableEdges2;
             close_btn.Size = new Size(131, 38);
             close_btn.TabIndex = 37;
             close_btn.Text = "Not Now";
@@ -135,7 +136,7 @@
             // 
             submit_btn.BorderRadius = 5;
             submit_btn.BorderThickness = 1;
-            submit_btn.CustomizableEdges = customizableEdges7;
+            submit_btn.CustomizableEdges = customizableEdges3;
             submit_btn.DisabledState.BorderColor = Color.DarkGray;
             submit_btn.DisabledState.CustomBorderColor = Color.DarkGray;
             submit_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
@@ -143,19 +144,28 @@
             submit_btn.FillColor = Color.FromArgb(0, 64, 0);
             submit_btn.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
             submit_btn.ForeColor = Color.White;
-            submit_btn.Location = new Point(877, 496);
+            submit_btn.Location = new Point(887, 544);
             submit_btn.Name = "submit_btn";
-            submit_btn.ShadowDecoration.CustomizableEdges = customizableEdges8;
+            submit_btn.ShadowDecoration.CustomizableEdges = customizableEdges4;
             submit_btn.Size = new Size(131, 38);
             submit_btn.TabIndex = 38;
             submit_btn.Text = "Submit";
             submit_btn.Click += submit_btn_Click;
             // 
+            // bookRsearchDisplay_rtbx
+            // 
+            bookRsearchDisplay_rtbx.Location = new Point(104, 248);
+            bookRsearchDisplay_rtbx.Name = "bookRsearchDisplay_rtbx";
+            bookRsearchDisplay_rtbx.Size = new Size(842, 78);
+            bookRsearchDisplay_rtbx.TabIndex = 39;
+            bookRsearchDisplay_rtbx.Text = "";
+            // 
             // Rate
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1054, 578);
+            ClientSize = new Size(1054, 622);
+            Controls.Add(bookRsearchDisplay_rtbx);
             Controls.Add(submit_btn);
             Controls.Add(close_btn);
             Controls.Add(label2);
@@ -186,5 +196,6 @@
         private Label label2;
         private Guna.UI2.WinForms.Guna2Button close_btn;
         private Guna.UI2.WinForms.Guna2Button submit_btn;
+        private RichTextBox bookRsearchDisplay_rtbx;
     }
 }
