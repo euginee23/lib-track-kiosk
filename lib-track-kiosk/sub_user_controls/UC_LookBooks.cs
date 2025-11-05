@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +12,7 @@ using lib_track_kiosk.sub_forms; // for ViewSelectedBook
 using lib_track_kiosk.helpers;   // for GetAllBooks / BookInfo
 using lib_track_kiosk.models;    // for GroupedBook
 using lib_track_kiosk.loading_forms; // for Loading
+using lib_track_kiosk.caching; // SharedBookCache
 
 namespace lib_track_kiosk.sub_user_controls
 {
@@ -37,22 +36,21 @@ namespace lib_track_kiosk.sub_user_controls
         // Debounce timer for search textbox to avoid filtering on every keystroke immediately
         private System.Windows.Forms.Timer _searchDebounceTimer;
 
-        // Shared HttpClient for downloading remote images
-        private static readonly HttpClient _httpClient = new HttpClient()
-        {
-            Timeout = TimeSpan.FromSeconds(10)
-        };
+        // Shared tooltip (reused per-card to avoid creating many ToolTip objects)
+        private readonly ToolTip _cardToolTip;
 
-        // In-memory image cache and download throttle
-        private readonly ConcurrentDictionary<string, Image> _imageCache = new ConcurrentDictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
-        private readonly SemaphoreSlim _downloadSemaphore = new SemaphoreSlim(6); // limit parallel downloads
+        // Cancellation token to cancel per-control async operations when disposing
+        private readonly CancellationTokenSource _cts = new CancellationTokenSource();
 
         public UC_LookBooks()
         {
             InitializeComponent();
 
-            // instantiate keyboard helper (lazy alternative is possible)
+            // instantiate keyboard helper
             _osk = new OnScreenKeyboard();
+
+            // shared tooltip
+            _cardToolTip = new ToolTip { ShowAlways = true };
 
             // ensure search textbox reference exists; try to find it if designer didn't set field
             TryResolveSearchTextBox();
@@ -91,7 +89,7 @@ namespace lib_track_kiosk.sub_user_controls
 
             TryEnableDoubleBuffer(books_FlowLayoutPanel);
 
-            // Load books from backend (GetAllBooks) asynchronously.
+            // Load books from shared cache (or fetch once) asynchronously
             _ = LoadBooksAsync();
         }
 
@@ -141,10 +139,18 @@ namespace lib_track_kiosk.sub_user_controls
                     _searchDebounceTimer.Tick -= SearchDebounceTimer_Tick;
                     _searchDebounceTimer.Stop();
                     _searchDebounceTimer.Dispose();
-                    _searchDebounceTimer = null;
                 }
             }
             catch { /* ignore */ }
+
+            try { _cardToolTip?.Dispose(); } catch { /* ignore */ }
+
+            // Cancel per-control async work
+            try { _cts.Cancel(); } catch { /* ignore */ }
+            try { _cts.Dispose(); } catch { /* ignore */ }
+
+            // Clear flow panel controls (disposing images & controls)
+            try { ClearBooksFlowPanel(); } catch { /* ignore */ }
         }
 
         private void SearchTxtBox_Click(object sender, EventArgs e) => TryOpenKeyboard();
@@ -152,7 +158,7 @@ namespace lib_track_kiosk.sub_user_controls
 
         private async void SearchTxtBox_LostFocus(object sender, EventArgs e)
         {
-            await Task.Delay(150);
+            await Task.Delay(150).ConfigureAwait(false);
             try { if (!this.ContainsFocus) TryCloseKeyboard(); } catch { }
         }
 
@@ -222,13 +228,12 @@ namespace lib_track_kiosk.sub_user_controls
         }
 
         /// <summary>
-        /// Loads books from the backend using GetAllBooks.GetAllAsync.
-        /// Uses returned BookInfo.CoverImage if already populated, otherwise will lazily download cover images using URL properties (CoverImageUrl / book_cover).
+        /// Loads books from the shared cache using SharedBookCache.GetOrFetchBooksAsync.
+        /// The first control that loads will fetch from API; subsequent controls will reuse the cached list.
         /// </summary>
         private async Task LoadBooksAsync()
         {
             Loading loadingForm = null;
-
             try
             {
                 loadingForm = new Loading();
@@ -250,7 +255,8 @@ namespace lib_track_kiosk.sub_user_controls
 
             try
             {
-                var fetched = await GetAllBooks.GetAllAsync().ConfigureAwait(false);
+                // Use the shared cache to avoid re-fetching on reload/navigation
+                var fetched = await SharedBookCache.GetOrFetchBooksAsync(() => GetAllBooks.GetAllAsync()).ConfigureAwait(false);
 
                 if (fetched != null && fetched.Count > 0)
                 {
@@ -287,7 +293,7 @@ namespace lib_track_kiosk.sub_user_controls
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ Error loading books from API: {ex.Message}");
+                Console.WriteLine($"⚠️ Error loading books from API/cache: {ex.Message}");
                 _allBooks = new List<BookInfo>();
                 _groupedBooks = new List<GroupedBook>();
                 _allGroupedBooks = new List<GroupedBook>();
@@ -316,11 +322,13 @@ namespace lib_track_kiosk.sub_user_controls
             }
         }
 
-        // Improved lazy download pipeline: throttled, cached, normalized URLs
+        // Lazy download pipeline using shared image cache so downloads aren't repeated across UC instances
         private void StartLazyDownloadForVisibleCovers()
         {
             try
             {
+                var token = _cts.Token;
+
                 foreach (Control ctrl in books_FlowLayoutPanel.Controls)
                 {
                     if (!(ctrl is Panel card)) continue;
@@ -362,52 +370,60 @@ namespace lib_track_kiosk.sub_user_controls
                     var rawUrl = ExtractCoverUrlFromBookInfo(rep);
                     if (string.IsNullOrWhiteSpace(rawUrl)) continue;
 
-                    // Fire-and-forget but safe: limit concurrency via semaphore in downloader
+                    var url = NormalizeCoverUrl(rawUrl);
+                    if (string.IsNullOrWhiteSpace(url)) continue;
+
+                    // Spawn a fire-and-forget task that uses the SHARED cache to download (or reuse) the image
                     _ = Task.Run(async () =>
                     {
                         try
                         {
-                            var img = await DownloadImageFromUrlAsync(rawUrl).ConfigureAwait(false);
+                            var img = await SharedBookCache.GetOrDownloadImageAsync(url, token).ConfigureAwait(false);
                             if (img == null) return;
 
-                            // cache on model (optional)
-                            try { rep.CoverImage = img; } catch { /* ignore */ }
+                            // assign to picture box on UI thread, only if it's still valid
+                            if (pictureBox == null) return;
+                            if (pictureBox.IsDisposed || pictureBox.Disposing) return;
 
-                            // assign to picture box on UI thread
-                            if (pictureBox.IsHandleCreated)
+                            if (pictureBox.InvokeRequired)
                             {
-                                try
-                                {
-                                    pictureBox.Invoke((Action)(() =>
-                                    {
-                                        try
-                                        {
-                                            var old = pictureBox.Image;
-                                            pictureBox.Image = (Image)img.Clone();
-                                            try { old?.Dispose(); } catch { }
-                                        }
-                                        catch
-                                        {
-                                            try { pictureBox.Image = img; } catch { }
-                                        }
-                                    }));
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine($"⚠️ Failed to invoke PictureBox assignment: {ex.Message}");
-                                }
+                                pictureBox.Invoke((Action)(() => TrySetPictureBoxImageSafely(pictureBox, img)));
                             }
+                            else
+                            {
+                                TrySetPictureBoxImageSafely(pictureBox, img);
+                            }
+
+                            // Cache on model (optional)
+                            try { rep.CoverImage = img; } catch { /* ignore */ }
                         }
+                        catch (OperationCanceledException) { /* ignore */ }
                         catch (Exception ex)
                         {
                             Console.WriteLine($"⚠️ Exception in cover download task: {ex.Message}");
                         }
-                    });
+                    }, token);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️ StartLazyDownloadForVisibleCovers error: {ex.Message}");
+            }
+        }
+
+        private void TrySetPictureBoxImageSafely(PictureBox pictureBox, Image img)
+        {
+            if (pictureBox == null) return;
+            if (pictureBox.IsDisposed || pictureBox.Disposing) return;
+            try
+            {
+                var old = pictureBox.Image;
+                pictureBox.Image = (Image)img.Clone();
+                try { old?.Dispose(); } catch { }
+            }
+            catch
+            {
+                try { pictureBox.Image = img; } catch { }
             }
         }
 
@@ -434,10 +450,8 @@ namespace lib_track_kiosk.sub_user_controls
             if (raw.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
                 return raw; // data URI (not expected)
 
-            // try to derive uploads base from API_Backend if available
             try
             {
-                // Prefer a static UploadDomain property if present
                 var prop = typeof(API_Backend).GetProperty("UploadDomain", BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase);
                 string baseUploads = null;
                 if (prop != null)
@@ -462,7 +476,6 @@ namespace lib_track_kiosk.sub_user_controls
             }
             catch { /* ignore */ }
 
-            // fallback to raw
             return raw;
         }
 
@@ -474,7 +487,6 @@ namespace lib_track_kiosk.sub_user_controls
             {
                 var t = b.GetType();
 
-                // Prefer explicit properties (if you add them to BookInfo)
                 var explicitProps = new[] { "CoverImageUrl", "CoverUrl", "ImageUrl", "book_cover", "bookCover" };
                 foreach (var name in explicitProps)
                 {
@@ -487,7 +499,7 @@ namespace lib_track_kiosk.sub_user_controls
                             if (val != null)
                             {
                                 var s = val.ToString().Trim();
-                                if (!string.IsNullOrWhiteSpace(s)) return NormalizeCoverUrl(s);
+                                if (!string.IsNullOrWhiteSpace(s)) return s;
                             }
                         }
                     }
@@ -499,89 +511,74 @@ namespace lib_track_kiosk.sub_user_controls
             return null;
         }
 
-        // Throttled downloader with in-memory cache. Returns a cloned Image for caller.
-        private async Task<Image> DownloadImageFromUrlAsync(string rawUrl)
+        // --- Fix: provide ExtractGenreNameFromBookInfo used by ApplyFilters ---
+        private string ExtractGenreNameFromBookInfo(BookInfo b)
         {
-            if (string.IsNullOrWhiteSpace(rawUrl)) return null;
-            var url = NormalizeCoverUrl(rawUrl);
-            if (string.IsNullOrWhiteSpace(url)) return null;
-
-            // Check cache
-            if (_imageCache.TryGetValue(url, out var cached) && cached != null)
-            {
-                try { return (Image)cached.Clone(); } catch { return cached; }
-            }
-
-            await _downloadSemaphore.WaitAsync().ConfigureAwait(false);
+            if (b == null) return null;
             try
             {
-                // double-check cache after waiting
-                if (_imageCache.TryGetValue(url, out var cached2) && cached2 != null)
+                var t = typeof(BookInfo);
+                var isUsingDeptProp = t.GetProperty("IsUsingDepartment", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                bool isUsingDept = false;
+                if (isUsingDeptProp != null)
                 {
-                    try { return (Image)cached2.Clone(); } catch { return cached2; }
-                }
-
-                using (var resp = await _http_client_get_async(url).ConfigureAwait(false))
-                {
-                    if (!resp.IsSuccessStatusCode)
-                    {
-                        Console.WriteLine($"⚠️ Cover download failed ({resp.StatusCode}) for URL: {url}");
-                        return null;
-                    }
-
-                    var bytes = await resp.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
-                    if (bytes == null || bytes.Length == 0) return null;
-
                     try
                     {
-                        using (var ms = new MemoryStream(bytes))
-                        {
-                            var img = Image.FromStream(ms);
-                            Image store;
-                            try
-                            {
-                                store = new Bitmap(img);
-                                img.Dispose();
-                            }
-                            catch
-                            {
-                                store = img;
-                            }
-
-                            _imageCache.TryAdd(url, store);
-
-                            try { return (Image)store.Clone(); } catch { return store; }
-                        }
+                        var v = isUsingDeptProp.GetValue(b);
+                        if (v is bool vb) isUsingDept = vb;
+                        else if (v is int vi) isUsingDept = vi == 1;
+                        else if (int.TryParse(v?.ToString(), out var vpi)) isUsingDept = vpi == 1;
+                        else if (bool.TryParse(v?.ToString(), out var vpb)) isUsingDept = vpb;
                     }
-                    catch (Exception exImg)
+                    catch { /* ignore */ }
+                }
+
+                if (isUsingDept)
+                {
+                    var deptProp = t.GetProperty("DepartmentName", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase)
+                                ?? t.GetProperty("department_name", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                    if (deptProp != null)
                     {
-                        Console.WriteLine($"⚠️ Failed to create Image from bytes for {url}: {exImg.Message}");
-                        return null;
+                        try
+                        {
+                            var dv = deptProp.GetValue(b);
+                            if (dv != null)
+                                return dv.ToString();
+                        }
+                        catch { /* ignore */ }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️ Error downloading cover {url}: {ex.Message}");
-                return null;
-            }
-            finally
-            {
-                _downloadSemaphore.Release();
-            }
-        }
 
-        // wrapper for HttpClient GET - isolated so it can be mocked/tested
-        private Task<HttpResponseMessage> _http_client_get_async(string url)
-        {
-            return _httpClient.GetAsync(url);
-        }
+                var candidates = new[]
+                {
+                    t.GetProperty("Genre", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase),
+                    t.GetProperty("genre", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase),
+                    t.GetProperty("BookGenre", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase),
+                    t.GetProperty("book_genre", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase),
+                }.Where(p => p != null);
 
-        /// <summary>
-        /// Populate author_cmbx with unique authors and genre_cmbx with unique genres (including department names
-        /// when a book uses department as genre). Adds "All" entry as index 0.
-        /// Uses a reflection-safe approach so this will not throw if the BookInfo class does not contain optional fields.
-        /// </summary>
+                foreach (var p in candidates)
+                {
+                    try
+                    {
+                        var gv = p.GetValue(b);
+                        if (gv != null)
+                        {
+                            var s = gv.ToString();
+                            if (!string.IsNullOrWhiteSpace(s)) return s;
+                        }
+                    }
+                    catch { /* ignore */ }
+                }
+            }
+            catch { /* ignore */ }
+
+            return null;
+        }
+        // --- end fix ---
+
+        // Populate author_cmbx with unique authors and genre_cmbx with unique genres (including department names
+        // when a book uses department as genre). Adds "All" entry as index 0.
         private void PopulateAuthorAndGenreFilters()
         {
             try
@@ -770,66 +767,6 @@ namespace lib_track_kiosk.sub_user_controls
             }
         }
 
-        // Attempts to extract a genre/department name from a BookInfo instance using reflection.
-        private string ExtractGenreNameFromBookInfo(BookInfo b)
-        {
-            if (b == null) return null;
-            try
-            {
-                var t = typeof(BookInfo);
-                var isUsingDeptProp = t.GetProperty("IsUsingDepartment", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-                bool isUsingDept = false;
-                if (isUsingDeptProp != null)
-                {
-                    try
-                    {
-                        var v = isUsingDeptProp.GetValue(b);
-                        if (v is bool vb) isUsingDept = vb;
-                        else if (v is int vi) isUsingDept = vi == 1;
-                        else if (int.TryParse(v?.ToString(), out var vpi)) isUsingDept = vpi == 1;
-                        else if (bool.TryParse(v?.ToString(), out var vpb)) isUsingDept = vpb;
-                    }
-                    catch { /* ignore */ }
-                }
-
-                if (isUsingDept)
-                {
-                    var deptProp = t.GetProperty("DepartmentName", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase)
-                                ?? t.GetProperty("department_name", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-                    if (deptProp != null)
-                    {
-                        var dv = deptProp.GetValue(b);
-                        if (dv != null) return dv.ToString();
-                    }
-                }
-
-                var candidates = new[]
-                {
-                    t.GetProperty("Genre", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase),
-                    t.GetProperty("genre", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase),
-                    t.GetProperty("BookGenre", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase),
-                    t.GetProperty("book_genre", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase),
-                }.Where(p => p != null);
-
-                foreach (var p in candidates)
-                {
-                    try
-                    {
-                        var gv = p.GetValue(b);
-                        if (gv != null)
-                        {
-                            var s = gv.ToString();
-                            if (!string.IsNullOrWhiteSpace(s)) return s;
-                        }
-                    }
-                    catch { /* ignore */ }
-                }
-            }
-            catch { /* ignore */ }
-
-            return null;
-        }
-
         private List<GroupedBook> GroupByBatchKey(List<BookInfo> books)
         {
             var grouped = books.GroupBy(b =>
@@ -881,14 +818,25 @@ namespace lib_track_kiosk.sub_user_controls
 
         private void DisplayBooks()
         {
-            books_FlowLayoutPanel.Controls.Clear();
+            // Dispose existing controls and their images properly to avoid handle leaks
+            ClearBooksFlowPanel();
             books_FlowLayoutPanel.AutoScroll = true;
 
-            foreach (var gb in _groupedBooks)
-                AddBookCard(gb);
+            // Suspend layout while adding many controls
+            books_FlowLayoutPanel.SuspendLayout();
+            try
+            {
+                foreach (var gb in _groupedBooks)
+                    AddBookCard(gb);
 
-            if (_groupedBooks == null || _groupedBooks.Count == 0)
-                AddNoResultsMessageToFlow();
+                if (_groupedBooks == null || _groupedBooks.Count == 0)
+                    AddNoResultsMessageToFlow();
+            }
+            finally
+            {
+                books_FlowLayoutPanel.ResumeLayout(false);
+                books_FlowLayoutPanel.PerformLayout();
+            }
         }
 
         private void AddNoResultsMessageToFlow()
@@ -1051,20 +999,25 @@ namespace lib_track_kiosk.sub_user_controls
 
             try
             {
-                var tooltip = new ToolTip();
                 var parts = gb.StatusCounts.OrderByDescending(kv => kv.Value)
                               .Select(kv => $"{kv.Key}: {kv.Value}");
                 string tooltipText = string.Join("  •  ", parts);
-                tooltip.SetToolTip(card, tooltipText);
+
+                // Use shared tooltip instance
+                _cardToolTip?.SetToolTip(card, tooltipText);
             }
             catch { /* ignore */ }
 
             Action<Control> attachClickRecursively = null;
             attachClickRecursively = (ctrl) =>
             {
-                ctrl.Click += Card_Click;
-                foreach (Control child in ctrl.Controls)
-                    attachClickRecursively(child);
+                try
+                {
+                    ctrl.Click += Card_Click;
+                    foreach (Control child in ctrl.Controls)
+                        attachClickRecursively(child);
+                }
+                catch { /* ignore */ }
             };
 
             attachClickRecursively(card);
@@ -1121,6 +1074,65 @@ namespace lib_track_kiosk.sub_user_controls
                 prop?.SetValue(c, true, null);
             }
             catch { }
+        }
+
+        // Safely dispose and remove all controls from the flow panel
+        private void ClearBooksFlowPanel()
+        {
+            if (books_FlowLayoutPanel == null) return;
+            try
+            {
+                books_FlowLayoutPanel.SuspendLayout();
+
+                var controls = books_FlowLayoutPanel.Controls.Cast<Control>().ToArray();
+                foreach (var c in controls)
+                {
+                    try
+                    {
+                        books_FlowLayoutPanel.Controls.Remove(c);
+                        DisposeControlAndChildren(c);
+                    }
+                    catch { /* ignore per-control errors */ }
+                }
+            }
+            catch { /* ignore */ }
+            finally
+            {
+                try { books_FlowLayoutPanel.ResumeLayout(false); } catch { }
+            }
+        }
+
+        // Recursively dispose children, and specially handle PictureBox.Image disposal
+        private void DisposeControlAndChildren(Control ctrl)
+        {
+            if (ctrl == null) return;
+
+            try
+            {
+                var children = ctrl.Controls.Cast<Control>().ToArray();
+                foreach (var ch in children)
+                {
+                    DisposeControlAndChildren(ch);
+                }
+
+                if (ctrl is PictureBox pb)
+                {
+                    try
+                    {
+                        if (pb.Image != null)
+                        {
+                            try { pb.Image.Dispose(); } catch { }
+                            pb.Image = null;
+                        }
+                    }
+                    catch { /* ignore */ }
+                }
+
+                try { ctrl.Controls.Clear(); } catch { }
+
+                try { ctrl.Dispose(); } catch { /* ignore */ }
+            }
+            catch { /* ignore */ }
         }
     }
 }

@@ -12,6 +12,7 @@ using lib_track_kiosk.helpers;       // for GetAllResearchPapers / AllResearchPa
 using lib_track_kiosk.loading_forms; // for Loading
 using Newtonsoft.Json.Linq;
 using System.Runtime.InteropServices;
+using lib_track_kiosk.caching;       // SharedResearchPaperCache
 
 namespace lib_track_kiosk.sub_user_controls
 {
@@ -261,7 +262,8 @@ namespace lib_track_kiosk.sub_user_controls
         }
 
         /// <summary>
-        /// Load research papers from the backend using GetAllResearchPapers.
+        /// Load research papers from the backend using GetAllResearchPapers, but go through SharedResearchPaperCache
+        /// to avoid repeated fetches across multiple UC instances.
         /// Shows the Loading form while fetching and closes it when finished.
         /// Maps helper DTO (AllResearchPaperInfo) into the UI model (Models.ResearchPaper).
         /// Uses pagination to avoid creating all UI controls at once.
@@ -297,13 +299,16 @@ namespace lib_track_kiosk.sub_user_controls
 
             try
             {
-                // GetAllResearchPapers returns List<AllResearchPaperInfo>
-                var fetched = await GetAllResearchPapers.GetAllAsync();
+                // Use the SharedResearchPaperCache to fetch-or-reuse cached AllResearchPaperInfo objects.
+                // Important: GetAllResearchPapers.GetAllAsync has an optional parameter, so the method group
+                // doesn't match Func<Task<List<AllResearchPaperInfo>>>. Provide a zero-arg lambda instead.
+                var fetched = await SharedResearchPaperCache.GetOrFetchAsync<AllResearchPaperInfo>(() => GetAllResearchPapers.GetAllAsync()).ConfigureAwait(false);
 
                 // Map AllResearchPaperInfo -> Models.ResearchPaper (full lists stored, but we will only render a page)
                 if (fetched != null && fetched.Count > 0)
                 {
-                    _allResearchPapers = fetched.Select(r => new Models.ResearchPaper
+                    // Map on UI thread context to keep things simple when interacting with UI afterwards.
+                    var mapped = fetched.Select(r => new Models.ResearchPaper
                     {
                         Id = r.ResearchPaperId,
                         Title = string.IsNullOrWhiteSpace(r.Title) ? "N/A" : r.Title,
@@ -314,6 +319,9 @@ namespace lib_track_kiosk.sub_user_controls
                         DepartmentName = string.IsNullOrWhiteSpace(r.DepartmentName) ? "N/A" : r.DepartmentName,
                         ShelfLocation = string.IsNullOrWhiteSpace(r.ShelfLocation) ? "N/A" : r.ShelfLocation
                     }).ToList();
+
+                    // store canonical mapped list for UI use
+                    _allResearchPapers = mapped;
 
                     // pagination initial display count
                     _displayCount = Math.Min(_pageSize, _allResearchPapers.Count);
@@ -359,7 +367,29 @@ namespace lib_track_kiosk.sub_user_controls
             }
 
             // Update UI (first page)
-            DisplayResearchPapers();
+            // Marshal to UI thread if necessary
+            if (this.InvokeRequired)
+            {
+                this.Invoke((Action)DisplayResearchPapers);
+            }
+            else
+            {
+                DisplayResearchPapers();
+            }
+        }
+
+        /// <summary>
+        /// Public helper to force refresh research papers (clears shared cache optionally).
+        /// Call RefreshResearchPapersAsync(true) to force a re-fetch from backend.
+        /// </summary>
+        public async Task RefreshResearchPapersAsync(bool force = false)
+        {
+            if (force)
+            {
+                SharedResearchPaperCache.Clear();
+            }
+
+            await LoadResearchPapersAsync().ConfigureAwait(false);
         }
 
         private void DisplayResearchPapers()

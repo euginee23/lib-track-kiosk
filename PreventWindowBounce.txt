@@ -1,0 +1,1 @@
+HKEY_CURRENT_USER\Software\Microsoft\Wisp\Touch set Bouncing to 0

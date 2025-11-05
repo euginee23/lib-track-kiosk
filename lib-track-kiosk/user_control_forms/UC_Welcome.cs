@@ -1,5 +1,6 @@
 ﻿using lib_track_kiosk.user_control_forms;
 using lib_track_kiosk.models;
+using lib_track_kiosk.configs;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -18,8 +19,8 @@ namespace lib_track_kiosk.panel_forms
         // Top 5 student borrowers: FirstName, LastName, DepartmentAcronym
         private List<(string FirstName, string LastName, string DeptAcronym)> _topStudents = new List<(string, string, string)>();
 
-        // Path to default avatar image (as provided)
-        private readonly string DefaultAvatarPath = @"E:\Library-Tracker\lib-track-kiosk\images\avatar-default.png";
+        // Path to default avatar image (now centralized in FileLocations)
+        private readonly string DefaultAvatarPath = FileLocations.DefaultAvatarPath;
 
         public UC_Welcome()
         {
@@ -43,6 +44,29 @@ namespace lib_track_kiosk.panel_forms
             {
                 DisplayTopStudents();
             };
+        }
+
+        private void DisposeImagesInContainer(Control container)
+        {
+            if (container == null) return;
+
+            foreach (Control c in container.Controls)
+            {
+                try
+                {
+                    if (c is PictureBox pb)
+                    {
+                        var img = pb.Image;
+                        pb.Image = null;
+                        img?.Dispose();
+                    }
+
+                    // recursively clear for nested controls
+                    if (c.HasChildren)
+                        DisposeImagesInContainer(c);
+                }
+                catch { /* ignore per-control errors */ }
+            }
         }
 
         private void lookForBooksResearch_btn_Click(object sender, EventArgs e)
@@ -90,11 +114,10 @@ namespace lib_track_kiosk.panel_forms
         // ==========================================
         private void LoadTopBooks()
         {
-            // NOTE:
-            // Replace these paths with application resources or relative paths in production.
-            string path1 = @"E:\Library-Tracker\dev files\input samples\book\qwe.jpg";
-            string path2 = @"E:\Library-Tracker\dev files\input samples\book\qwer.jpg";
-            string path3 = @"E:\Library-Tracker\dev files\input samples\book\qwert.jpg";
+            // Use centralized sample paths from FileLocations.
+            string path1 = FileLocations.SampleBookCover1;
+            string path2 = FileLocations.SampleBookCover2;
+            string path3 = FileLocations.SampleBookCover3;
 
             _topBooks = new List<Book>
             {
@@ -188,8 +211,8 @@ namespace lib_track_kiosk.panel_forms
                 try
                 {
                     using (var fs = File.OpenRead(book.CoverImagePath))
+                    using (var img = Image.FromStream(fs))
                     {
-                        var img = Image.FromStream(fs);
                         cover.Image = new Bitmap(img);
                     }
                 }
@@ -510,25 +533,29 @@ namespace lib_track_kiosk.panel_forms
 
             // Load default avatar image if available, else generate initials avatar
             Image avatarImg = null;
-            if (File.Exists(DefaultAvatarPath))
+            try
             {
-                try
+                if (File.Exists(DefaultAvatarPath))
                 {
                     using (var fs = File.OpenRead(DefaultAvatarPath))
+                    using (var img = Image.FromStream(fs))
+                    using (var srcBmp = new Bitmap(img))
                     {
-                        var img = Image.FromStream(fs);
-                        avatarImg = CreateCircularAvatarImage(new Bitmap(img), new Size(avatarSize, avatarSize));
+                        avatarImg = CreateCircularAvatarImage(srcBmp, new Size(avatarSize, avatarSize));
                     }
                 }
-                catch
+                else
                 {
                     avatarImg = CreateInitialsAvatar(firstName, lastName, new Size(avatarSize, avatarSize));
                 }
             }
-            else
+            catch
             {
+                // On any unexpected error, fallback to initials avatar (defensive)
+                try { avatarImg?.Dispose(); } catch { }
                 avatarImg = CreateInitialsAvatar(firstName, lastName, new Size(avatarSize, avatarSize));
             }
+
             avatar.Image = avatarImg;
 
             // Name label (to the right of avatar) - allow up to 2 lines and ellipsis if still too long
@@ -583,6 +610,13 @@ namespace lib_track_kiosk.panel_forms
         // Produce circular avatar from rectangular image
         private Image CreateCircularAvatarImage(Image src, Size size)
         {
+            // Guard against invalid sizes to avoid GDI+ generic errors
+            if (src == null || size.Width <= 0 || size.Height <= 0)
+            {
+                // return a minimal transparent bitmap as fallback
+                return new Bitmap(1, 1);
+            }
+
             try
             {
                 var dest = new Bitmap(size.Width, size.Height);
@@ -604,13 +638,17 @@ namespace lib_track_kiosk.panel_forms
             }
             catch
             {
-                return CreateInitialsAvatar("", "", size);
+                // If something goes wrong, fall back to initials avatar (defensive)
+                try { return CreateInitialsAvatar("", "", size); } catch { return new Bitmap(1, 1); }
             }
         }
 
         // Calculate source rectangle to crop/scale image while preserving aspect ratio (center-crop)
         private Rectangle GetScaledSourceRect(Size srcSize, Size destSize)
         {
+            // Guard: if source zero-sized fallback to full
+            if (srcSize.Width <= 0 || srcSize.Height <= 0) return new Rectangle(0, 0, destSize.Width, destSize.Height);
+
             float srcRatio = (float)srcSize.Width / srcSize.Height;
             float destRatio = (float)destSize.Width / destSize.Height;
 
@@ -618,44 +656,71 @@ namespace lib_track_kiosk.panel_forms
             {
                 // source is wider -> crop sides
                 int newWidth = (int)(srcSize.Height * destRatio);
-                int x = (srcSize.Width - newWidth) / 2;
-                return new Rectangle(x, 0, newWidth, srcSize.Height);
+                int x = Math.Max(0, (srcSize.Width - newWidth) / 2);
+                return new Rectangle(x, 0, Math.Max(1, newWidth), srcSize.Height);
             }
             else
             {
                 // source is taller -> crop top/bottom
                 int newHeight = (int)(srcSize.Width / destRatio);
-                int y = (srcSize.Height - newHeight) / 2;
-                return new Rectangle(0, y, srcSize.Width, newHeight);
+                int y = Math.Max(0, (srcSize.Height - newHeight) / 2);
+                return new Rectangle(0, y, srcSize.Width, Math.Max(1, newHeight));
             }
         }
 
         // If no image, create colored circle with initials
         private Image CreateInitialsAvatar(string firstName, string lastName, Size size)
         {
+            // Guard against invalid sizes
+            if (size.Width <= 0 || size.Height <= 0)
+                return new Bitmap(1, 1);
+
             string initials = GetInitials(firstName, lastName);
             var bmp = new Bitmap(size.Width, size.Height);
-            using (var g = Graphics.FromImage(bmp))
+            try
             {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                // background color - choose a pleasant purple
-                Color bg = Color.FromArgb(90, 80, 170);
-                using (var brush = new SolidBrush(bg))
+                using (var g = Graphics.FromImage(bmp))
                 {
-                    g.FillEllipse(brush, 0, 0, size.Width - 1, size.Height - 1);
-                }
-
-                // draw initials
-                using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                using (var brush = new SolidBrush(Color.White))
-                {
-                    float fontSize = size.Width / 2.2f;
-                    using (var font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel))
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    // background color - choose a pleasant purple
+                    Color bg = Color.FromArgb(90, 80, 170);
+                    using (var brush = new SolidBrush(bg))
                     {
-                        g.DrawString(initials, font, brush, new RectangleF(0, 0, size.Width, size.Height), sf);
+                        g.FillEllipse(brush, 0, 0, size.Width - 1, size.Height - 1);
+                    }
+
+                    // draw initials
+                    using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                    using (var brush = new SolidBrush(Color.White))
+                    {
+                        // Choose a font size that fits; wrap in try/catch in case font creation fails
+                        float fontSize = Math.Max(6f, Math.Min(size.Width / 2.2f, size.Height / 2.2f));
+                        try
+                        {
+                            using (var font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel))
+                            {
+                                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                                g.DrawString(initials, font, brush, new RectangleF(0, 0, size.Width, size.Height), sf);
+                            }
+                        }
+                        catch
+                        {
+                            // fallback using default font if custom font fails
+                            using (var font = SystemFonts.DefaultFont)
+                            {
+                                g.DrawString(initials, font, brush, new RectangleF(0, 0, size.Width, size.Height), sf);
+                            }
+                        }
                     }
                 }
             }
+            catch
+            {
+                // If GDI+ throws, dispose and create a 1x1 bitmap fallback to avoid crash
+                try { bmp.Dispose(); } catch { }
+                return new Bitmap(1, 1);
+            }
+
             return bmp;
         }
 
