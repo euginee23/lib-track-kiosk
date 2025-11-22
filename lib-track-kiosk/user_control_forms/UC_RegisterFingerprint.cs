@@ -149,20 +149,31 @@ namespace lib_track_kiosk.user_control_forms
 
         private bool IsFingerprintDuplicate(byte[] templateToCheck)
         {
-            if (finger1Template != null && zkfp2.DBMatch(mDBHandle, templateToCheck, finger1Template) > 0)
-                return true;
-            if (finger2Template != null && zkfp2.DBMatch(mDBHandle, templateToCheck, finger2Template) > 0)
-                return true;
-            if (finger3Template != null && zkfp2.DBMatch(mDBHandle, templateToCheck, finger3Template) > 0)
-                return true;
+            if (mDBHandle == IntPtr.Zero) return false;
+
+            try
+            {
+                if (finger1Template != null && zkfp2.DBMatch(mDBHandle, templateToCheck, finger1Template) > 0)
+                    return true;
+                if (finger2Template != null && zkfp2.DBMatch(mDBHandle, templateToCheck, finger2Template) > 0)
+                    return true;
+                if (finger3Template != null && zkfp2.DBMatch(mDBHandle, templateToCheck, finger3Template) > 0)
+                    return true;
+            }
+            catch
+            {
+                // If matching fails for any reason, don't treat it as duplicate (but log in real app)
+            }
 
             return false;
         }
 
-        private void CaptureFinger(PictureBox pictureBox, out byte[] templateStorage)
+        /// <summary>
+        /// Capture finger asynchronously. onCaptured will be invoked on the UI thread with the template bytes.
+        /// The caller is responsible for storing the template bytes to the appropriate field.
+        /// </summary>
+        private void CaptureFinger(PictureBox pictureBox, Action<byte[]> onCaptured)
         {
-            templateStorage = null;
-
             if (mDevHandle == IntPtr.Zero)
             {
                 UpdateStatus("Fingerprint device not opened.");
@@ -178,27 +189,48 @@ namespace lib_track_kiosk.user_control_forms
                     int ret = zkfp2.AcquireFingerprint(mDevHandle, FPBuffer, CapTmp, ref cbCapTmp);
                     if (ret == zkfp.ZKFP_ERR_OK)
                     {
-                        Bitmap bmp = BufferToBitmap(FPBuffer, mfpWidth, mfpHeight);
+                        Bitmap bmp = null;
                         byte[] templateBytes = new byte[cbCapTmp];
                         Array.Copy(CapTmp, templateBytes, cbCapTmp);
 
+                        // quick duplicate check
                         if (IsFingerprintDuplicate(templateBytes))
                         {
                             this.Invoke((Action)(() =>
                             {
                                 UpdateStatus("This finger is already scanned. Please scan a different finger.");
                             }));
+                            // dispose created template buffer reference (it's just an array) and break
                             break;
+                        }
+
+                        try
+                        {
+                            bmp = BufferToBitmap(FPBuffer, mfpWidth, mfpHeight);
+                        }
+                        catch
+                        {
+                            bmp = null;
                         }
 
                         this.Invoke((Action)(() =>
                         {
-                            pictureBox.Image = bmp;
-                            if (pictureBox == finger1_picturebox) finger1Template = templateBytes;
-                            if (pictureBox == finger3_picturebox) finger2Template = templateBytes;
-                            if (pictureBox == finger4_picturebox) finger3Template = templateBytes;
+                            try
+                            {
+                                // dispose previous image to avoid GDI+ leaks
+                                var prev = pictureBox.Image;
+                                pictureBox.Image = bmp;
+                                try { prev?.Dispose(); } catch { }
 
-                            UpdateStatus("Fingerprint captured successfully.");
+                                // pass template to caller for assignment
+                                onCaptured?.Invoke(templateBytes);
+
+                                UpdateStatus("Fingerprint captured successfully.");
+                            }
+                            catch (Exception ex)
+                            {
+                                UpdateStatus("Error processing fingerprint: " + ex.Message);
+                            }
                         }));
                         break;
                     }
@@ -277,16 +309,11 @@ namespace lib_track_kiosk.user_control_forms
                 return;
             }
 
-            // Use provided Database config class for all connection details (per your request)
             Database dbConfig = new Database();
-
-            // connection string built from Database class — do not hardcode values elsewhere
-            // Added AllowPublicKeyRetrieval and SslMode=None for compatibility troubleshooting (remove/change for production)
             string connStr = $"Server={dbConfig.Host};Database={dbConfig.Name};User Id={dbConfig.User};Password={dbConfig.Password};Port={dbConfig.Port};AllowPublicKeyRetrieval=True;SslMode=None;ConnectionTimeout=15;";
 
             try
             {
-                // Ensure templates directory exists before DB ops via the centralized FileLocations helper
                 try
                 {
                     FileLocations.EnsureTemplatesDirectoryExists();
@@ -307,7 +334,6 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     catch (MySqlException mex)
                     {
-                        // Diagnostic: log and show detailed MySQL exception info (temporarily)
                         LogError("StoreFingerprints-MySqlOpen", mex);
                         MessageBox.Show($"MySQL connection failed.\nError #{mex.Number}: {mex.Message}\n\nSee log for details.", "Database Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         UpdateStatus("MySQL connection failed: " + mex.Message);
@@ -350,25 +376,24 @@ namespace lib_track_kiosk.user_control_forms
                     // Helper: write template file and insert DB record with filename (not binary)
                     void WriteFileAndInsert(byte[] template, string fingerLabel)
                     {
-                        string safeType = SanitizeFingerTypeForFile(fingerLabel);
+                        string canonical = CanonicalizeFingerType(fingerLabel) ?? "unknown";
+                        string safeType = SanitizeFingerTypeForFile(canonical);
                         string fileName = $"{userId}_{safeType}.bin";
                         string path = Path.Combine(FileLocations.TemplatesDirectory, fileName);
 
-                        // Overwrite file if exists
                         File.WriteAllBytes(path, template);
 
                         using (MySqlCommand cmdFP = new MySqlCommand(insertFP, conn))
                         {
                             cmdFP.Parameters.AddWithValue("@uid", userId);
-                            cmdFP.Parameters.AddWithValue("@type", fingerLabel.Trim());
-                            // store filename into data column
+                            cmdFP.Parameters.AddWithValue("@type", canonical);
                             cmdFP.Parameters.AddWithValue("@data", fileName);
                             cmdFP.ExecuteNonQuery();
                         }
                     }
 
                     // Finger 1
-                    if (ValidateFingerType(finger1Type_label.Text))
+                    if (CanonicalizeFingerType(finger1Type_label.Text) != null)
                     {
                         WriteFileAndInsert(finger1Template, finger1Type_label.Text);
                     }
@@ -379,7 +404,7 @@ namespace lib_track_kiosk.user_control_forms
                     }
 
                     // Finger 2
-                    if (ValidateFingerType(finger2Type_label.Text))
+                    if (CanonicalizeFingerType(finger2Type_label.Text) != null)
                     {
                         WriteFileAndInsert(finger2Template, finger2Type_label.Text);
                     }
@@ -390,7 +415,7 @@ namespace lib_track_kiosk.user_control_forms
                     }
 
                     // Finger 3
-                    if (ValidateFingerType(finger3Type_label.Text))
+                    if (CanonicalizeFingerType(finger3Type_label.Text) != null)
                     {
                         WriteFileAndInsert(finger3Template, finger3Type_label.Text);
                     }
@@ -402,6 +427,15 @@ namespace lib_track_kiosk.user_control_forms
 
                     MessageBox.Show("Fingerprint templates saved to disk and filenames recorded in database successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     UpdateStatus("Fingerprints saved successfully.");
+
+                    // Navigate back to home/welcome screen after successful registration
+                    CleanupFingerprint();
+
+                    if (this.ParentForm is MainForm mainForm)
+                    {
+                        var welcomeScreen = new UC_Welcome();
+                        mainForm.addUserControl(welcomeScreen);
+                    }
                 }
             }
             catch (Exception ex)
@@ -436,13 +470,43 @@ namespace lib_track_kiosk.user_control_forms
             return trimmed;
         }
 
+        /// <summary>
+        /// Accepts common synonyms ("Pinky") and canonicalizes to a uniform label used in DB ("Little").
+        /// Returns null for invalid/unknown values.
+        /// </summary>
+        private string CanonicalizeFingerType(string fingerType)
+        {
+            if (string.IsNullOrWhiteSpace(fingerType)) return null;
+            string s = fingerType.Trim().ToLowerInvariant();
+
+            switch (s)
+            {
+                case "thumb":
+                    return "Thumb";
+                case "index":
+                case "pointer":
+                case "forefinger":
+                    return "Index";
+                case "middle":
+                case "middle finger":
+                    return "Middle";
+                case "ring":
+                case "ring finger":
+                    return "Ring";
+                case "little":
+                case "pinky":
+                case "pinky finger":
+                case "little finger":
+                    // treat "pinky" as "Little" so both are acceptable
+                    return "Little";
+                default:
+                    return null;
+            }
+        }
+
         private bool ValidateFingerType(string fingerType)
         {
-            if (string.IsNullOrEmpty(fingerType))
-                return false;
-
-            string[] validFingerTypes = { "Thumb", "Index", "Middle", "Ring", "Little" };
-            return validFingerTypes.Contains(fingerType.Trim());
+            return CanonicalizeFingerType(fingerType) != null;
         }
 
         private void exitRegisterFingerprint_btn_Click(object sender, EventArgs e)
@@ -458,12 +522,16 @@ namespace lib_track_kiosk.user_control_forms
 
         private bool IsFingerTypeAlreadySelected(string fingerType, Guna2HtmlLabel currentLabel)
         {
-            if (!string.IsNullOrEmpty(finger1Type_label.Text) && finger1Type_label != currentLabel && finger1Type_label.Text == fingerType)
-                return true;
-            if (!string.IsNullOrEmpty(finger2Type_label.Text) && finger2Type_label != currentLabel && finger2Type_label.Text == fingerType)
-                return true;
-            if (!string.IsNullOrEmpty(finger3Type_label.Text) && finger3Type_label != currentLabel && finger3Type_label.Text == fingerType)
-                return true;
+            var canonical = CanonicalizeFingerType(fingerType);
+            if (canonical == null) return false;
+
+            var a = CanonicalizeFingerType(finger1Type_label.Text);
+            var b = CanonicalizeFingerType(finger2Type_label.Text);
+            var c = CanonicalizeFingerType(finger3Type_label.Text);
+
+            if (!string.IsNullOrEmpty(a) && finger1Type_label != currentLabel && a == canonical) return true;
+            if (!string.IsNullOrEmpty(b) && finger2Type_label != currentLabel && b == canonical) return true;
+            if (!string.IsNullOrEmpty(c) && finger3Type_label != currentLabel && c == canonical) return true;
 
             return false;
         }
@@ -484,7 +552,12 @@ namespace lib_track_kiosk.user_control_forms
 
                     finger1Type_label.Text = fingerType;
                     UpdateStatus($"Please place your {fingerType} finger on the scanner...");
-                    CaptureFinger(finger1_picturebox, out _);
+
+                    // Capture and assign to finger1Template
+                    CaptureFinger(finger1_picturebox, (tmpl) =>
+                    {
+                        finger1Template = tmpl;
+                    });
                 }
                 else
                 {
@@ -509,7 +582,12 @@ namespace lib_track_kiosk.user_control_forms
 
                     finger2Type_label.Text = fingerType;
                     UpdateStatus($"Please place your {fingerType} finger on the scanner...");
-                    CaptureFinger(finger3_picturebox, out _);
+
+                    // Note: UI uses picturebox named finger3_picturebox for the second slot in current layout.
+                    CaptureFinger(finger3_picturebox, (tmpl) =>
+                    {
+                        finger2Template = tmpl;
+                    });
                 }
                 else
                 {
@@ -534,7 +612,12 @@ namespace lib_track_kiosk.user_control_forms
 
                     finger3Type_label.Text = fingerType;
                     UpdateStatus($"Please place your {fingerType} finger on the scanner...");
-                    CaptureFinger(finger4_picturebox, out _);
+
+                    // Note: UI uses picturebox named finger4_picturebox for the third slot in current layout.
+                    CaptureFinger(finger4_picturebox, (tmpl) =>
+                    {
+                        finger3Template = tmpl;
+                    });
                 }
                 else
                 {
@@ -545,6 +628,7 @@ namespace lib_track_kiosk.user_control_forms
 
         private void removeFinger1_btn_Click(object sender, EventArgs e)
         {
+            try { finger1_picturebox.Image?.Dispose(); } catch { }
             finger1_picturebox.Image = null;
             finger1Template = null;
             UpdateStatus("Finger 1 removed.");
@@ -552,6 +636,7 @@ namespace lib_track_kiosk.user_control_forms
 
         private void removeFinger2_btn_Click(object sender, EventArgs e)
         {
+            try { finger3_picturebox.Image?.Dispose(); } catch { }
             finger3_picturebox.Image = null;
             finger2Template = null;
             UpdateStatus("Finger 2 removed.");
@@ -559,6 +644,7 @@ namespace lib_track_kiosk.user_control_forms
 
         private void removeFinger3_btn_Click(object sender, EventArgs e)
         {
+            try { finger4_picturebox.Image?.Dispose(); } catch { }
             finger4_picturebox.Image = null;
             finger3Template = null;
             UpdateStatus("Finger 3 removed.");

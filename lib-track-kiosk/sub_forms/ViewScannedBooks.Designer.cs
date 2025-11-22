@@ -35,6 +35,11 @@
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges5 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges6 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             bookResearch_dgv = new DataGridView();
+            Column1 = new DataGridViewTextBoxColumn();
+            Column2 = new DataGridViewTextBoxColumn();
+            Column3 = new DataGridViewTextBoxColumn();
+            Column4 = new DataGridViewButtonColumn();
+            Column5 = new DataGridViewButtonColumn();
             panel5 = new Panel();
             panel1 = new Panel();
             panel2 = new Panel();
@@ -44,12 +49,7 @@
             scrollDown_btn = new Guna.UI2.WinForms.Guna2Button();
             scrollUp_btn = new Guna.UI2.WinForms.Guna2Button();
             label1 = new Label();
-            guna2Button1 = new Guna.UI2.WinForms.Guna2Button();
-            Column1 = new DataGridViewTextBoxColumn();
-            Column2 = new DataGridViewTextBoxColumn();
-            Column3 = new DataGridViewTextBoxColumn();
-            Column4 = new DataGridViewButtonColumn();
-            Column5 = new DataGridViewButtonColumn();
+            closeView_btn = new Guna.UI2.WinForms.Guna2Button();
             ((System.ComponentModel.ISupportInitialize)bookResearch_dgv).BeginInit();
             panel4.SuspendLayout();
             SuspendLayout();
@@ -64,6 +64,43 @@
             bookResearch_dgv.RowHeadersVisible = false;
             bookResearch_dgv.Size = new Size(668, 523);
             bookResearch_dgv.TabIndex = 0;
+            // 
+            // Column1
+            // 
+            Column1.HeaderText = "Type";
+            Column1.Name = "Column1";
+            Column1.ReadOnly = true;
+            Column1.Width = 140;
+            // 
+            // Column2
+            // 
+            Column2.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            Column2.HeaderText = "Title";
+            Column2.Name = "Column2";
+            Column2.ReadOnly = true;
+            // 
+            // Column3
+            // 
+            Column3.HeaderText = "Author";
+            Column3.Name = "Column3";
+            Column3.ReadOnly = true;
+            Column3.Width = 200;
+            // 
+            // Column4
+            // 
+            Column4.HeaderText = "Remove";
+            Column4.Name = "Column4";
+            Column4.ReadOnly = true;
+            Column4.Width = 80;
+            // 
+            // Column5
+            // 
+            Column5.HeaderText = "View";
+            Column5.Name = "Column5";
+            Column5.ReadOnly = true;
+            Column5.Resizable = DataGridViewTriState.True;
+            Column5.SortMode = DataGridViewColumnSortMode.Automatic;
+            Column5.Width = 80;
             // 
             // panel5
             // 
@@ -164,61 +201,25 @@
             label1.TabIndex = 36;
             label1.Text = "Scanned Books / Research Papers";
             // 
-            // guna2Button1
+            // closeView_btn
             // 
-            guna2Button1.BackColor = Color.Silver;
-            guna2Button1.BorderRadius = 5;
-            guna2Button1.CustomizableEdges = customizableEdges5;
-            guna2Button1.DisabledState.BorderColor = Color.DarkGray;
-            guna2Button1.DisabledState.CustomBorderColor = Color.DarkGray;
-            guna2Button1.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
-            guna2Button1.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
-            guna2Button1.FillColor = Color.Gray;
-            guna2Button1.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            guna2Button1.ForeColor = Color.White;
-            guna2Button1.Location = new Point(658, 601);
-            guna2Button1.Name = "guna2Button1";
-            guna2Button1.ShadowDecoration.CustomizableEdges = customizableEdges6;
-            guna2Button1.Size = new Size(117, 43);
-            guna2Button1.TabIndex = 37;
-            guna2Button1.Text = "Close";
-            // 
-            // Column1
-            // 
-            Column1.HeaderText = "Type";
-            Column1.Name = "Column1";
-            Column1.ReadOnly = true;
-            Column1.Width = 140;
-            // 
-            // Column2
-            // 
-            Column2.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            Column2.HeaderText = "Title";
-            Column2.Name = "Column2";
-            Column2.ReadOnly = true;
-            // 
-            // Column3
-            // 
-            Column3.HeaderText = "Author";
-            Column3.Name = "Column3";
-            Column3.ReadOnly = true;
-            Column3.Width = 200;
-            // 
-            // Column4
-            // 
-            Column4.HeaderText = "Remove";
-            Column4.Name = "Column4";
-            Column4.ReadOnly = true;
-            Column4.Width = 80;
-            // 
-            // Column5
-            // 
-            Column5.HeaderText = "View";
-            Column5.Name = "Column5";
-            Column5.ReadOnly = true;
-            Column5.Resizable = DataGridViewTriState.True;
-            Column5.SortMode = DataGridViewColumnSortMode.Automatic;
-            Column5.Width = 80;
+            closeView_btn.BackColor = Color.Silver;
+            closeView_btn.BorderRadius = 5;
+            closeView_btn.CustomizableEdges = customizableEdges5;
+            closeView_btn.DisabledState.BorderColor = Color.DarkGray;
+            closeView_btn.DisabledState.CustomBorderColor = Color.DarkGray;
+            closeView_btn.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
+            closeView_btn.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
+            closeView_btn.FillColor = Color.Gray;
+            closeView_btn.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            closeView_btn.ForeColor = Color.White;
+            closeView_btn.Location = new Point(658, 601);
+            closeView_btn.Name = "closeView_btn";
+            closeView_btn.ShadowDecoration.CustomizableEdges = customizableEdges6;
+            closeView_btn.Size = new Size(117, 43);
+            closeView_btn.TabIndex = 37;
+            closeView_btn.Text = "Close";
+            closeView_btn.Click += closeView_btn_Click;
             // 
             // ViewScannedBooks
             // 
@@ -226,7 +227,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 673);
             Controls.Add(panel3);
-            Controls.Add(guna2Button1);
+            Controls.Add(closeView_btn);
             Controls.Add(label1);
             Controls.Add(panel4);
             Controls.Add(panel2);
@@ -255,7 +256,7 @@
         private Guna.UI2.WinForms.Guna2Button scrollDown_btn;
         private Guna.UI2.WinForms.Guna2Button scrollUp_btn;
         private Label label1;
-        private Guna.UI2.WinForms.Guna2Button guna2Button1;
+        private Guna.UI2.WinForms.Guna2Button closeView_btn;
         private DataGridViewTextBoxColumn Column1;
         private DataGridViewTextBoxColumn Column2;
         private DataGridViewTextBoxColumn Column3;

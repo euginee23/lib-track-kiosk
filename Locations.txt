@@ -1,0 +1,5 @@
+C:\lib-track-kiosk\images\
+
+C:\lib-track-kiosk\on-screen-kb\
+
+C:\lib-track-kiosk\fingerprint-templates\

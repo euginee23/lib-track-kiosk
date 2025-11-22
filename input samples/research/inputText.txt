@@ -1,0 +1,63 @@
+Sample 1
+
+Title: Enhancing Data Security in Cloud Computing Using Blockchain Technology
+
+Author(s): Maria Santos, John Reyes
+
+Year: 2023
+
+Department: Computer Science
+
+Shelf Location: Column C, Row 12
+
+Abstract:
+This study investigates the integration of blockchain technology into cloud computing environments to enhance data security. Using a mixed-methods approach, the research analyzes current cloud security vulnerabilities, designs a blockchain-based model for secure data storage, and evaluates its performance. Findings reveal a 35% reduction in unauthorized access incidents. The paper concludes with recommendations for scalable implementation in enterprise systems.
+
+____________________________________________________________________________________________
+
+Sample 2
+
+Title: The Impact of Urban Green Spaces on Mental Health: A Case Study in Metro Manila
+
+Author(s): Angela Cruz, Patrick Lim
+
+Year: 2022
+
+Department: Environmental Science
+
+Shelf Location: Column A, Row 8
+
+Abstract:
+This research explores the correlation between urban green spaces and mental health outcomes among Metro Manila residents. Using survey data from 500 respondents and GIS mapping, the study highlights significant improvements in stress reduction and community well-being. The paper concludes that increasing access to green spaces should be a priority in urban planning policies.
+____________________________________________________________________________________________
+
+Sample 3
+
+Title: Machine Learning-Based Prediction of Student Academic Performance
+
+Author(s): Carlo Mendoza
+
+Year: 2021
+
+Department: Education Technology
+
+Shelf Location: Column E, Row 4
+
+Abstract:
+This paper presents a predictive model using machine learning algorithms to forecast student academic performance based on demographic, behavioral, and academic data. Data from 2,000 students across three universities were analyzed. The model achieved an 89% accuracy rate in predicting at-risk students. Recommendations include early intervention programs informed by predictive analytics.
+____________________________________________________________________________________________
+
+Sample 3
+
+Title: Machine Learning-Based Prediction of Student Academic Performance
+
+Author(s): Carlo Mendoza
+
+Year: 2021
+
+Department: Education Technology
+
+Shelf Location: Column E, Row 4
+
+Abstract:
+This paper presents a predictive model using machine learning algorithms to forecast student academic performance based on demographic, behavioral, and academic data. Data from 2,000 students across three universities were analyzed. The model achieved an 89% accuracy rate in predicting at-risk students. Recommendations include early intervention programs informed by predictive analytics.

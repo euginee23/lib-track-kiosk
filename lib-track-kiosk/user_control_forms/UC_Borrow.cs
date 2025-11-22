@@ -9,10 +9,12 @@ using System.Net.Http;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using lib_track_kiosk.configs;
 using System.Globalization;
+using System.Linq;
 
 namespace lib_track_kiosk.user_control_forms
 {
@@ -26,43 +28,261 @@ namespace lib_track_kiosk.user_control_forms
 
         private UC_GenerateReceipt receiptUCInstance;
 
+        // Single shared HttpClient for this control (shared across instances via static)
         private static readonly HttpClient sharedHttpClient = new HttpClient();
+
+        // Cancellation token to cancel ongoing network ops when control is disposed/handle destroyed
+        private CancellationTokenSource _cts = new CancellationTokenSource();
+
+        // Track if control is active
+        private bool _isActive = false;
 
         public UC_Borrow()
         {
             InitializeComponent();
+
+            // Wire up visibility changed events for cleanup
+            this.VisibleChanged += UC_Borrow_VisibleChanged;
             this.Load += UC_Borrow_Load;
+            this.Disposed += UC_Borrow_Disposed;
+        }
+
+        /// <summary>
+        /// Called when control visibility changes. Cleanup when hidden.
+        /// </summary>
+        private void UC_Borrow_VisibleChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                if (!this.Visible && _isActive)
+                {
+                    Console.WriteLine("🧹 UC_Borrow hidden - cleaning up memory...");
+                    CleanupMemory();
+                    _isActive = false;
+                }
+                else if (this.Visible && !_isActive)
+                {
+                    _isActive = true;
+                    Console.WriteLine("✓ UC_Borrow shown");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ UC_Borrow_VisibleChanged error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Public method to cleanup memory when leaving this control.
+        /// Call this from parent form before switching to another control.
+        /// </summary>
+        public void CleanupMemory()
+        {
+            try
+            {
+                Console.WriteLine("🧹 Starting memory cleanup for UC_Borrow...");
+
+                // Cancel any pending operations
+                try { _cts?.Cancel(); } catch { }
+
+                // Clear scanned items lists
+                scannedBooks?.Clear();
+                scannedResearchPapers?.Clear();
+
+                // Dispose receipt UC
+                try
+                {
+                    if (receiptUCInstance != null)
+                    {
+                        generateReceipt_panel.Controls.Remove(receiptUCInstance);
+                        receiptUCInstance.Dispose();
+                        receiptUCInstance = null;
+                    }
+                }
+                catch { }
+
+                // Dispose and clear panels
+                try { DisposeAndClearPanelChildren(scannedType_panel); } catch { }
+                try { DisposeAndClearPanelChildren(generateReceipt_panel); } catch { }
+
+                // Dispose profile picture
+                try
+                {
+                    if (profile_pictureBox != null && profile_pictureBox.Image != null)
+                    {
+                        var img = profile_pictureBox.Image;
+                        profile_pictureBox.Image = null;
+                        img.Dispose();
+                    }
+                }
+                catch { }
+
+                // Clear user data
+                currentUserId = null;
+
+                // Clear labels
+                try
+                {
+                    if (fullName_lbl != null) fullName_lbl.Text = "";
+                    if (email_lbl != null) email_lbl.Text = "";
+                    if (contactNumber_lbl != null) contactNumber_lbl.Text = "";
+                    if (department_lbl != null) department_lbl.Text = "";
+                    if (position_lbl != null) position_lbl.Text = "";
+                    if (yearLevel_lbl != null) yearLevel_lbl.Text = "";
+                    if (pendingPenalties_lbl != null) pendingPenalties_lbl.Text = "0";
+                    if (fines_lbl != null) fines_lbl.Text = "₱0.00";
+                    if (booksCurrentlyBorrowed_lbl != null) booksCurrentlyBorrowed_lbl.Text = "0";
+                    if (maxBooksThatCanBorrow_lbl != null) maxBooksThatCanBorrow_lbl.Text = "0";
+                }
+                catch { }
+
+                // Re-enable buttons that may have been disabled
+                try
+                {
+                    if (add_btn != null) add_btn.Enabled = true;
+                    if (borrow_btn != null) borrow_btn.Enabled = true;
+                    if (viewScannedBooks_btn != null) viewScannedBooks_btn.Enabled = true;
+                }
+                catch { }
+
+                // Force aggressive garbage collection
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+
+                long memoryAfter = GC.GetTotalMemory(false) / (1024 * 1024);
+                Console.WriteLine($"✓ Memory cleanup completed. Current memory: {memoryAfter}MB");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ CleanupMemory error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Public method to reload data when returning to this control.
+        /// </summary>
+        public async Task ReloadDataAsync()
+        {
+            try
+            {
+                Console.WriteLine("🔄 Reloading UC_Borrow data...");
+
+                if (currentUserId.HasValue)
+                {
+                    await FetchAndDisplayUserInformation(currentUserId.Value);
+                }
+
+                Console.WriteLine("✓ UC_Borrow data reloaded");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ ReloadDataAsync error: {ex.Message}");
+            }
+        }
+
+        private void UC_Borrow_Disposed(object sender, EventArgs e)
+        {
+            Console.WriteLine("🗑️ UC_Borrow disposing...");
+
+            try { this.VisibleChanged -= UC_Borrow_VisibleChanged; } catch { }
+            try { this.Load -= UC_Borrow_Load; } catch { }
+
+            try { _cts?.Cancel(); } catch { }
+            try { _cts?.Dispose(); } catch { }
+            _cts = null;
+
+            // Dispose receipt UC
+            try
+            {
+                if (receiptUCInstance != null)
+                {
+                    generateReceipt_panel.Controls.Remove(receiptUCInstance);
+                    receiptUCInstance.Dispose();
+                    receiptUCInstance = null;
+                }
+            }
+            catch { }
+
+            // Clear all data
+            try
+            {
+                scannedBooks?.Clear();
+                scannedResearchPapers?.Clear();
+            }
+            catch { }
+
+            // Dispose panels
+            try { DisposeAndClearPanelChildren(scannedType_panel); } catch { }
+            try { DisposeAndClearPanelChildren(generateReceipt_panel); } catch { }
+
+            // Dispose profile picture
+            try
+            {
+                if (profile_pictureBox != null && profile_pictureBox.Image != null)
+                {
+                    var img = profile_pictureBox.Image;
+                    profile_pictureBox.Image = null;
+                    img.Dispose();
+                }
+            }
+            catch { }
+
+            // Force final cleanup
+            try
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            }
+            catch { }
+
+            Console.WriteLine("✓ UC_Borrow disposed");
         }
 
         // FORM LOAD - SCAN FINGERPRINT 
         private async void UC_Borrow_Load(object sender, EventArgs e)
         {
-            using (var scanFingerprint = new ScanFingerprint())
+            try
             {
-                var result = scanFingerprint.ShowDialog();
+                if (this.IsDisposed || _cts.IsCancellationRequested) return;
 
-                if (result == DialogResult.Cancel)
+                using (var scanFingerprint = new ScanFingerprint())
                 {
-                    MainForm mainForm = (MainForm)this.ParentForm;
-                    if (mainForm != null)
-                    {
-                        UC_Welcome welcomeScreen = new UC_Welcome();
-                        mainForm.addUserControl(welcomeScreen);
-                    }
-                    return;
-                }
+                    var result = scanFingerprint.ShowDialog();
 
-                if (result == DialogResult.OK)
-                {
-                    int? userId = scanFingerprint.ScannedUserId;
-                    if (!userId.HasValue)
+                    if (result == DialogResult.Cancel)
                     {
-                        MessageBox.Show("⚠️ No valid user detected.");
+                        CleanupMemory(); // Cleanup before leaving
+
+                        MainForm mainForm = (MainForm)this.ParentForm;
+                        if (mainForm != null)
+                        {
+                            UC_Welcome welcomeScreen = new UC_Welcome();
+                            mainForm.addUserControl(welcomeScreen);
+                        }
                         return;
                     }
 
-                    await FetchAndDisplayUserInformation(userId.Value);
+                    if (result == DialogResult.OK)
+                    {
+                        int? userId = scanFingerprint.ScannedUserId;
+                        if (!userId.HasValue)
+                        {
+                            MessageBox.Show("⚠️ No valid user detected.");
+                            CleanupMemory();
+                            return;
+                        }
+
+                        _isActive = true;
+                        await FetchAndDisplayUserInformation(userId.Value).ConfigureAwait(true);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ UC_Borrow_Load error: {ex.Message}");
+                MessageBox.Show($"Error loading borrow screen: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -73,33 +293,59 @@ namespace lib_track_kiosk.user_control_forms
             {
                 currentUserId = userId;
 
-                // Note: UserFetcher.GetUserInfoAsync now returns the restriction flag as the last element
                 var (fullName, email, contactNumber, department, position, yearLevel, profilePhoto, isRestricted)
                     = await UserFetcher.GetUserInfoAsync(userId);
 
-                fullName_lbl.Text = fullName;
-                email_lbl.Text = email;
-                contactNumber_lbl.Text = contactNumber;
-                department_lbl.Text = department;
-                position_lbl.Text = position;
-                yearLevel_lbl.Text = yearLevel;
+                if (this.IsHandleCreated)
+                {
+                    this.Invoke((Action)(() =>
+                    {
+                        fullName_lbl.Text = fullName;
+                        email_lbl.Text = email;
+                        contactNumber_lbl.Text = contactNumber;
+                        department_lbl.Text = department;
+                        position_lbl.Text = position;
+                        yearLevel_lbl.Text = yearLevel;
+                    }));
+                }
 
-                // initialize defaults while we fetch more details
                 pendingPenalties_lbl.Text = "0";
                 fines_lbl.Text = "₱0.00";
                 booksCurrentlyBorrowed_lbl.Text = "0";
 
                 // DISPLAY PROFILE PHOTO
-                if (profilePhoto != null)
+                try
                 {
-                    profile_pictureBox.Image = profilePhoto;
+                    if (this.profile_pictureBox.Image != null)
+                    {
+                        try { this.profile_pictureBox.Image.Dispose(); } catch { }
+                        this.profile_pictureBox.Image = null;
+                    }
+
+                    if (profilePhoto != null)
+                    {
+                        this.profile_pictureBox.Image = new Bitmap(profilePhoto);
+                    }
+                    else
+                    {
+                        string defaultPath = FileLocations.DefaultAvatarPath ?? @"E:\Library-Tracker\lib-track-admin\public\avatar-default.png";
+                        if (File.Exists(defaultPath))
+                        {
+                            using (var fs = File.OpenRead(defaultPath))
+                            using (var img = Image.FromStream(fs))
+                            {
+                                this.profile_pictureBox.Image = new Bitmap(img);
+                            }
+                        }
+                        else
+                        {
+                            this.profile_pictureBox.Image = null;
+                        }
+                    }
+
+                    this.profile_pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
                 }
-                else
-                {
-                    // fallback default avatar path (update if different in your environment)
-                    profile_pictureBox.ImageLocation = @"E:\Library-Tracker\lib-track-admin\public\avatar-default.png";
-                }
-                profile_pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+                catch { }
 
                 // LOAD BORROWING LIMITS
                 string userType = position ?? "Student";
@@ -114,11 +360,9 @@ namespace lib_track_kiosk.user_control_forms
 
                 LoadReceiptGenerationPanel(userType, userId);
 
-                // Update penalties/fines and currently borrowed counts
                 var (penaltyCount, totalFines) = await UpdatePenaltyAndFinesAsync(userId);
                 int borrowedCount = await UpdateBooksCurrentlyBorrowedAsync(userId);
 
-                // If account is restricted, handle like penalties / max-limit: show message and restrict actions
                 if (isRestricted)
                 {
                     string message = $"⚠️ Your account is restricted and cannot borrow items at this time.\n\n" +
@@ -128,7 +372,8 @@ namespace lib_track_kiosk.user_control_forms
 
                     if (dialogResult == DialogResult.Cancel)
                     {
-                        // Go back to welcome screen
+                        CleanupMemory();
+
                         MainForm mainForm = this.ParentForm as MainForm;
                         if (mainForm != null)
                         {
@@ -139,25 +384,22 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     else
                     {
-                        // User clicked OK (wants to stay). Disable actions that would allow borrowing.
                         DisableActionsForPendingFines();
                     }
                 }
 
-                // If there are pending fines, notify user and require payment before borrowing
                 if (penaltyCount > 0 || totalFines > 0.0)
                 {
                     string finesFormatted = $"₱{totalFines:N2}";
                     string message = $"⚠️ You have pending penalties ({penaltyCount}) with total fines {finesFormatted}.\n\n" +
                                      "Please pay your fines before borrowing additional items.";
 
-                    // Offer the user to go back to the Welcome screen (Cancel) or remain (OK).
-                    // If they choose to stay, disable adding/borrowing until fines are resolved.
                     var dialogResult = MessageBox.Show(message, "Pending Fines", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1);
 
                     if (dialogResult == DialogResult.Cancel)
                     {
-                        // Go back to welcome screen
+                        CleanupMemory();
+
                         MainForm mainForm = this.ParentForm as MainForm;
                         if (mainForm != null)
                         {
@@ -168,12 +410,10 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     else
                     {
-                        // User clicked OK (wants to stay). Disable actions that would allow borrowing.
                         DisableActionsForPendingFines();
                     }
                 }
 
-                // Check if borrowed count reached or exceeded maximum allowed
                 if (borrowedCount >= maxBooks)
                 {
                     string message = $"⚠️ You have reached the maximum allowed borrowed items ({borrowedCount}/{maxBooks}).\n\n" +
@@ -183,7 +423,8 @@ namespace lib_track_kiosk.user_control_forms
 
                     if (dialogResult == DialogResult.Cancel)
                     {
-                        // Go back to welcome screen
+                        CleanupMemory();
+
                         MainForm mainForm = this.ParentForm as MainForm;
                         if (mainForm != null)
                         {
@@ -194,11 +435,11 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     else
                     {
-                        // disable borrowing actions as with pending fines
                         DisableActionsForPendingFines();
                     }
                 }
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
                 MessageBox.Show($"🔥 Error fetching user info: {ex.Message}");
@@ -208,17 +449,46 @@ namespace lib_track_kiosk.user_control_forms
         // EXIT BORROW PANEL
         private void exitBorrow_btn_Click(object sender, EventArgs e)
         {
-            MainForm mainForm = (MainForm)this.ParentForm;
-            if (mainForm != null)
+            try
             {
-                UC_Welcome welcomeScreen = new UC_Welcome();
-                mainForm.addUserControl(welcomeScreen);
+                Console.WriteLine("🚪 Exiting Borrow screen...");
+
+                CleanupMemory(); // Cleanup before leaving
+
+                MainForm mainForm = (MainForm)this.ParentForm;
+                if (mainForm != null)
+                {
+                    UC_Welcome welcomeScreen = new UC_Welcome();
+                    mainForm.addUserControl(welcomeScreen);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ exitBorrow_btn_Click error: {ex.Message}");
             }
         }
 
         // LOAD RECEIPT GENERATION PANEL
         private void LoadReceiptGenerationPanel(string userType, int userId)
         {
+            try
+            {
+                if (receiptUCInstance != null)
+                {
+                    if (receiptUCInstance.UserId.HasValue && receiptUCInstance.UserId.Value != userId)
+                    {
+                        try
+                        {
+                            generateReceipt_panel.Controls.Remove(receiptUCInstance);
+                            receiptUCInstance.Dispose();
+                        }
+                        catch { }
+                        receiptUCInstance = null;
+                    }
+                }
+            }
+            catch { }
+
             if (receiptUCInstance == null)
             {
                 receiptUCInstance = new UC_GenerateReceipt(
@@ -233,11 +503,12 @@ namespace lib_track_kiosk.user_control_forms
             }
             else
             {
-                // make sure receipt has correct user id if it already exists
                 try
                 {
-                    if (receiptUCInstance.UserId != userId)
+                    if (!receiptUCInstance.UserId.HasValue || receiptUCInstance.UserId.Value != userId)
                     {
+                        generateReceipt_panel.Controls.Remove(receiptUCInstance);
+                        try { receiptUCInstance.Dispose(); } catch { }
                         receiptUCInstance = new UC_GenerateReceipt(
                             userType,
                             userId,
@@ -249,28 +520,26 @@ namespace lib_track_kiosk.user_control_forms
                         generateReceipt_panel.Controls.Add(receiptUCInstance);
                     }
                 }
-                catch
-                {
-                    // swallow - guard in case UC_GenerateReceipt doesn't expose UserId in some versions
-                }
+                catch { }
             }
         }
 
-        // helper: check if a book is already scanned by id or book number
         private bool IsBookAlreadyScanned(int bookId, string bookNumber)
         {
             foreach (var (id, number) in scannedBooks)
             {
-                if (id == bookId)
-                    return true;
-                if (!string.IsNullOrEmpty(bookNumber) && !string.IsNullOrEmpty(number) &&
+                // A book is considered already scanned only if BOTH book_id AND book_number match
+                if (id == bookId && 
+                    !string.IsNullOrEmpty(bookNumber) && 
+                    !string.IsNullOrEmpty(number) &&
                     string.Equals(number, bookNumber, StringComparison.OrdinalIgnoreCase))
+                {
                     return true;
+                }
             }
             return false;
         }
 
-        // helper: check if research paper already scanned
         private bool IsResearchPaperAlreadyScanned(int researchPaperId)
         {
             return scannedResearchPapers.Contains(researchPaperId);
@@ -285,7 +554,7 @@ namespace lib_track_kiosk.user_control_forms
                 {
                     string scannedType = scanForm.ScannedType;
 
-                    scannedType_panel.Controls.Clear();
+                    DisposeAndClearPanelChildren(scannedType_panel);
 
                     if (scannedType == "Book" &&
                         scanForm.ScannedBookId.HasValue &&
@@ -294,7 +563,6 @@ namespace lib_track_kiosk.user_control_forms
                         int bookId = scanForm.ScannedBookId.Value;
                         string bookNumber = scanForm.ScannedBookNumber;
 
-                        // Prevent adding duplicate book scans
                         if (IsBookAlreadyScanned(bookId, bookNumber))
                         {
                             MessageBox.Show("⚠️ This book has already been scanned and won't be added again.");
@@ -308,13 +576,11 @@ namespace lib_track_kiosk.user_control_forms
                             scannedType_panel.Controls.Add(bookInfoUC);
                         }
                     }
-                    // 📄 Research Paper
                     else if (scannedType == "Research Paper" &&
                              scanForm.ScannedResearchPaperId.HasValue)
                     {
                         int researchPaperId = scanForm.ScannedResearchPaperId.Value;
 
-                        // Prevent duplicate research paper scans
                         if (IsResearchPaperAlreadyScanned(researchPaperId))
                         {
                             MessageBox.Show("⚠️ This research paper has already been scanned and won't be added again.");
@@ -323,7 +589,6 @@ namespace lib_track_kiosk.user_control_forms
                         {
                             scannedResearchPapers.Add(researchPaperId);
 
-                            // Use the real UC_ScannedResearchInformation from sub_user_controls
                             var researchInfoUC = new UC_ScannedResearchInformation(researchPaperId);
                             researchInfoUC.Dock = DockStyle.Fill;
                             scannedType_panel.Controls.Add(researchInfoUC);
@@ -338,7 +603,6 @@ namespace lib_track_kiosk.user_control_forms
 
             if (receiptUCInstance != null)
             {
-                // fire and forget update — the receipt UC handles the lists asynchronously
                 _ = receiptUCInstance.UpdateScannedItemsAsync(scannedBooks, scannedResearchPapers);
             }
         }
@@ -355,18 +619,16 @@ namespace lib_track_kiosk.user_control_forms
         // DYNAMIC DISPLAY OF SCANNED ITEM
         public void ShowScannedItem(string type, int itemId, string bookNumber = null)
         {
-            scannedType_panel.Controls.Clear();
+            DisposeAndClearPanelChildren(scannedType_panel);
 
             if (type == "Book")
             {
                 var bookInfoUC = new UC_ScannedBookInformation(itemId, bookNumber);
                 bookInfoUC.Dock = DockStyle.Fill;
                 scannedType_panel.Controls.Add(bookInfoUC);
-
             }
             else if (type == "Research Paper")
             {
-                // Use the real UC_ScannedResearchInformation control to show full details
                 var researchInfoUC = new UC_ScannedResearchInformation(researchPaperId: itemId);
                 researchInfoUC.Dock = DockStyle.Fill;
                 scannedType_panel.Controls.Add(researchInfoUC);
@@ -388,7 +650,6 @@ namespace lib_track_kiosk.user_control_forms
                 return;
             }
 
-            // BUILD BORROW REQUEST
             var borrowRequest = new BorrowRequest
             {
                 ReferenceNumber = receiptUCInstance.ReferenceNumber,
@@ -396,35 +657,30 @@ namespace lib_track_kiosk.user_control_forms
                 DueDate = receiptUCInstance.DueDate
             };
 
-            // ADD SCANNED BOOKS
             foreach (var (bookId, _) in scannedBooks)
                 borrowRequest.BookIds.Add(bookId);
 
-            // ADD SCANNED RESEARCH PAPERS  
             borrowRequest.ResearchPaperIds.AddRange(scannedResearchPapers);
 
-            // ATTACH RECEIPT IMAGE (one-step: send local file with /borrow)
-            string tempReceiptPath = GenerateReceiptImageFromPanel();
-            if (!string.IsNullOrEmpty(tempReceiptPath))
-            {
-                // Assign local temp file path so BorrowFetcher will attach it as file content.
-                borrowRequest.ReceiptFilePath = tempReceiptPath;
-            }
-
+            string tempReceiptPath = null;
             try
             {
+                tempReceiptPath = GenerateReceiptImageFromPanel();
+                if (!string.IsNullOrEmpty(tempReceiptPath))
+                {
+                    borrowRequest.ReceiptFilePath = tempReceiptPath;
+                }
+
                 var response = await BorrowFetcher.BorrowAsync(borrowRequest);
 
                 if (response.Success)
                 {
                     MessageBox.Show($"✅ Borrow successful!\nItems borrowed: {borrowRequest.BookIds.Count + borrowRequest.ResearchPaperIds.Count}\nReference: {borrowRequest.ReferenceNumber}");
 
-                    // --- Show Post-Assessment Survey BEFORE returning to the welcome screen ---
                     try
                     {
                         using (var survey = new PostAssessmentSurvey())
                         {
-                            // center on parent form if available
                             var owner = this.FindForm();
                             survey.StartPosition = FormStartPosition.CenterParent;
                             if (owner != null)
@@ -435,19 +691,18 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     catch (Exception ex)
                     {
-                        // If survey fails to open for any reason, log or show a message but continue the flow.
                         Console.Error.WriteLine("Failed to show PostAssessmentSurvey: " + ex);
                     }
 
-                    // CLEAR SCANNED ITEMS
                     scannedBooks.Clear();
                     scannedResearchPapers.Clear();
-                    scannedType_panel.Controls.Clear();
+                    DisposeAndClearPanelChildren(scannedType_panel);
 
-                    // UPDATE RECEIPT PANEL
                     _ = receiptUCInstance?.UpdateScannedItemsAsync(scannedBooks, scannedResearchPapers);
 
-                    // CONFIRMATION - RETURN TO WELCOME SCREEN
+                    // Cleanup before navigating
+                    CleanupMemory();
+
                     MainForm mainForm = this.ParentForm as MainForm;
                     if (mainForm != null)
                     {
@@ -460,48 +715,51 @@ namespace lib_track_kiosk.user_control_forms
                     MessageBox.Show($"❌ Borrow failed: {response.Message}\nError: {response.Error}");
                 }
             }
+            catch (OperationCanceledException)
+            {
+                MessageBox.Show("Operation cancelled.");
+            }
             catch (Exception ex)
             {
                 MessageBox.Show($"🔥 Unexpected error: {ex.Message}");
             }
             finally
             {
-                // Clean up local temp file AFTER the borrow request completes so the file is available to be attached.
                 try
                 {
                     if (!string.IsNullOrEmpty(tempReceiptPath) && File.Exists(tempReceiptPath))
                         File.Delete(tempReceiptPath);
                 }
-                catch
-                {
-                    // ignore cleanup errors
-                }
+                catch { }
             }
         }
 
-        // HELPER TO GENERATE RECEIPT IMAGE
         private string GenerateReceiptImageFromPanel()
         {
             if (generateReceipt_panel.Controls.Count == 0)
                 return null;
 
-            Bitmap bitmap = new Bitmap(generateReceipt_panel.Width, generateReceipt_panel.Height);
-            generateReceipt_panel.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+            Bitmap bitmap = null;
+            string tempPath = null;
+            try
+            {
+                bitmap = new Bitmap(generateReceipt_panel.Width, generateReceipt_panel.Height);
+                generateReceipt_panel.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+                tempPath = Path.Combine(Path.GetTempPath(), $"Receipt_{DateTime.Now:yyyyMMddHHmmssfff}.jpg");
+                bitmap.Save(tempPath, ImageFormat.Jpeg);
+            }
+            catch
+            {
+                tempPath = null;
+            }
+            finally
+            {
+                try { bitmap?.Dispose(); } catch { }
+            }
 
-            string tempPath = Path.Combine(Path.GetTempPath(), $"Receipt_{DateTime.Now:yyyyMMddHHmmss}.jpg");
-            bitmap.Save(tempPath, System.Drawing.Imaging.ImageFormat.Jpeg);
             return tempPath;
         }
 
-        // Upload the local temp receipt image to the server upload endpoint and return the server path/url.
-        // This version is simplified and more tolerant of different JSON shapes the upload endpoint might return.
-        // It will try common locations for the returned path/url:
-        // - top-level string
-        // - root.data (string/object)
-        // - root.file.url / root.file.path / root.file.fname
-        // - root.data.file.url
-        // - root.files[0] variants
-        // If nothing is found the method throws a descriptive exception including the raw response.
         private async Task<string> UploadReceiptImageToServerAsync(string localFilePath)
         {
             if (string.IsNullOrEmpty(localFilePath) || !File.Exists(localFilePath))
@@ -517,24 +775,22 @@ namespace lib_track_kiosk.user_control_forms
                 fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
                 content.Add(fileContent, "file", Path.GetFileName(localFilePath));
 
-                var resp = await sharedHttpClient.PostAsync(uploadUrl, content);
+                var resp = await sharedHttpClient.PostAsync(uploadUrl, content, _cts.Token);
                 var respBody = await resp.Content.ReadAsStringAsync();
 
                 if (!resp.IsSuccessStatusCode)
                 {
-                    // Try to extract useful message but ultimately throw
                     string serverMsg = respBody;
                     try
                     {
                         var parsed = JObject.Parse(respBody);
                         serverMsg = parsed.Value<string>("message") ?? parsed.Value<string>("error") ?? respBody;
                     }
-                    catch { /* ignore */ }
+                    catch { }
 
                     throw new Exception($"Upload failed ({(int)resp.StatusCode}): {serverMsg}");
                 }
 
-                // Defensive and simplified parsing:
                 if (string.IsNullOrWhiteSpace(respBody))
                     throw new Exception("Upload returned an empty response body");
 
@@ -542,7 +798,6 @@ namespace lib_track_kiosk.user_control_forms
                 {
                     var root = JObject.Parse(respBody);
 
-                    // 1) If top-level has "url" or "path" or "filePath" or "filename"
                     string[] topLevelCandidates = { "url", "path", "filePath", "filename", "file", "location" };
                     foreach (var key in topLevelCandidates)
                     {
@@ -556,7 +811,6 @@ namespace lib_track_kiosk.user_control_forms
                             }
                             else if (token.Type == JTokenType.Object)
                             {
-                                // common case: root.file = { url: "...", fname: "..." }
                                 var obj = token as JObject;
                                 var url = obj.Value<string>("url") ?? obj.Value<string>("path") ?? obj.Value<string>("fname") ?? obj.Value<string>("filename");
                                 if (!string.IsNullOrEmpty(url)) return url;
@@ -564,7 +818,6 @@ namespace lib_track_kiosk.user_control_forms
                         }
                     }
 
-                    // 2) Check root["data"]
                     var data = root["data"];
                     if (data != null)
                     {
@@ -590,7 +843,6 @@ namespace lib_track_kiosk.user_control_forms
                                 if (!string.IsNullOrEmpty(nf)) return nf;
                             }
 
-                            // data could be an array
                             if (data is JArray dataArr && dataArr.Count > 0)
                             {
                                 var first = dataArr[0];
@@ -608,7 +860,6 @@ namespace lib_track_kiosk.user_control_forms
                         }
                     }
 
-                    // 3) Check root["file"] directly (some upload endpoints return { file: { ... } })
                     var fileToken = root["file"];
                     if (fileToken != null)
                     {
@@ -624,7 +875,6 @@ namespace lib_track_kiosk.user_control_forms
                         }
                     }
 
-                    // 4) Check root["files"] array
                     var filesArr = root["files"] as JArray;
                     if (filesArr != null && filesArr.Count > 0)
                     {
@@ -641,7 +891,6 @@ namespace lib_track_kiosk.user_control_forms
                         }
                     }
 
-                    // Nothing matched - include raw response for diagnostics
                     throw new Exception($"Failed to parse upload response: no file path/url found. Raw response: {respBody}");
                 }
                 catch (Exception ex)
@@ -651,21 +900,15 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Fetch penalties for the current user and update labels:
-        // pendingPenalties_lbl => count of unpaid penalties
-        // fines_lbl => sum of fines for unpaid penalties (computed from returned penalties array to avoid backend string-concat bugs)
-        // Returns a tuple (unpaidCount, computedFines) so the caller can react (e.g., force payment)
         private async Task<(int totalCount, double totalFines)> UpdatePenaltyAndFinesAsync(int userId)
         {
             try
             {
                 string url = $"{API_Backend.BaseUrl}/api/penalties/user/{userId}";
-                using (HttpClient client = new HttpClient())
+                using (var resp = await sharedHttpClient.GetAsync(url, _cts.Token))
                 {
-                    var resp = await client.GetAsync(url);
                     if (!resp.IsSuccessStatusCode)
                     {
-                        // fallback defaults on failure
                         pendingPenalties_lbl.Text = "0";
                         fines_lbl.Text = "₱0.00";
                         return (0, 0.0);
@@ -683,8 +926,6 @@ namespace lib_track_kiosk.user_control_forms
                     }
 
                     var data = root["data"];
-                    // Defensive: compute unpaid penalties count and fine sum from penalties array,
-                    // ignoring entries where status == "Paid" (case-insensitive).
                     double computedFines = 0.0;
                     int unpaidCount = 0;
 
@@ -696,17 +937,14 @@ namespace lib_track_kiosk.user_control_forms
                             string status = p["status"]?.Value<string>() ?? string.Empty;
                             if (status.Equals("Paid", StringComparison.OrdinalIgnoreCase))
                             {
-                                // skip paid penalties
                                 continue;
                             }
 
-                            // This penalty is considered unpaid
                             unpaidCount++;
 
                             var fineToken = p["fine"];
                             if (fineToken != null)
                             {
-                                // Try to parse using invariant culture to handle decimal separators reliably.
                                 string fineStr = fineToken.ToString();
                                 if (double.TryParse(fineStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double parsedFine) ||
                                     double.TryParse(fineStr, NumberStyles.Any, CultureInfo.CurrentCulture, out parsedFine))
@@ -715,7 +953,6 @@ namespace lib_track_kiosk.user_control_forms
                                 }
                                 else
                                 {
-                                    // try parsing ints as fallback
                                     if (int.TryParse(fineStr, out int parsedIntFine))
                                         computedFines += parsedIntFine;
                                 }
@@ -724,8 +961,6 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     else
                     {
-                        // If penalties array missing, attempt to use total_count and total_fines,
-                        // but we cannot determine paid status — assume server already excludes Paid in these fields.
                         unpaidCount = data?["total_count"]?.Value<int>() ?? 0;
                         computedFines = data?["total_fines"]?.Value<double>() ?? 0.0;
                     }
@@ -736,9 +971,12 @@ namespace lib_track_kiosk.user_control_forms
                     return (unpaidCount, computedFines);
                 }
             }
+            catch (OperationCanceledException)
+            {
+                return (0, 0.0);
+            }
             catch (Exception ex)
             {
-                // on any error, default to zeros and log
                 Console.Error.WriteLine($"Error updating penalties/fines: {ex}");
                 pendingPenalties_lbl.Text = "0";
                 fines_lbl.Text = "₱0.00";
@@ -746,18 +984,13 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Fetch transactions for the current user and update booksCurrentlyBorrowed_lbl.
-        // Count individual items that are considered still "borrowed".
-        // Exclude those with status == "Returned" or status == "Done".
-        // Returns the computed borrowed items count so caller can make decisions.
         private async Task<int> UpdateBooksCurrentlyBorrowedAsync(int userId)
         {
             try
             {
                 string url = $"{API_Backend.BaseUrl}/api/transactions/user/{userId}";
-                using (HttpClient client = new HttpClient())
+                using (var resp = await sharedHttpClient.GetAsync(url, _cts.Token))
                 {
-                    var resp = await client.GetAsync(url);
                     if (!resp.IsSuccessStatusCode)
                     {
                         booksCurrentlyBorrowed_lbl.Text = "0";
@@ -785,23 +1018,22 @@ namespace lib_track_kiosk.user_control_forms
                     foreach (var tx in data)
                     {
                         string status = tx["status"]?.Value<string>() ?? string.Empty;
-
-                        // Exclude transactions that are already returned or done.
-                        // Treat missing status as still borrowed (conservative).
                         if (status.Equals("Returned", StringComparison.OrdinalIgnoreCase) ||
                             status.Equals("Done", StringComparison.OrdinalIgnoreCase))
                         {
-                            // do not count
                             continue;
                         }
 
-                        // Count this transaction as currently borrowed
                         borrowedItemsCount++;
                     }
 
                     booksCurrentlyBorrowed_lbl.Text = borrowedItemsCount.ToString();
                     return borrowedItemsCount;
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                return 0;
             }
             catch (Exception ex)
             {
@@ -811,28 +1043,99 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Disable actions that allow borrowing while user has pending fines or reached limits.
         private void DisableActionsForPendingFines()
         {
             try
             {
-                // Common controls to disable to prevent further borrowing
                 add_btn.Enabled = false;
                 borrow_btn.Enabled = false;
                 viewScannedBooks_btn.Enabled = false;
-                // Optionally disable receipt generation interactions if they expose enable properties
+                if (receiptUCInstance != null)
+                {
+                    try { receiptUCInstance.Enabled = false; } catch { }
+                }
+            }
+            catch { }
+        }
+
+        private void DisposeImagesInContainer(Control container)
+        {
+            if (container == null) return;
+
+            var children = container.Controls.Cast<Control>().ToArray();
+            foreach (var c in children)
+            {
+                try
+                {
+                    if (c is PictureBox pb)
+                    {
+                        var img = pb.Image;
+                        pb.Image = null;
+                        try { img?.Dispose(); } catch { }
+                    }
+
+                    if (c.HasChildren)
+                        DisposeImagesInContainer(c);
+                }
+                catch { }
+            }
+
+            if (container is PictureBox rootPb)
+            {
+                var img = rootPb.Image;
+                rootPb.Image = null;
+                try { img?.Dispose(); } catch { }
+            }
+        }
+
+        private void DisposeAndClearPanelChildren(Control container)
+        {
+            if (container == null) return;
+
+            var children = container.Controls.Cast<Control>().ToArray();
+            foreach (var ctrl in children)
+            {
+                try
+                {
+                    DisposeImagesInContainer(ctrl);
+                    try { container.Controls.Remove(ctrl); } catch { }
+                    try { ctrl.Dispose(); } catch { }
+                }
+                catch { }
+            }
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            try
+            {
+                try { _cts.Cancel(); } catch { }
+
                 if (receiptUCInstance != null)
                 {
                     try
                     {
-                        receiptUCInstance.Enabled = false;
+                        generateReceipt_panel.Controls.Remove(receiptUCInstance);
+                        receiptUCInstance.Dispose();
                     }
-                    catch { /* ignore if not supported */ }
+                    catch { }
+                    finally { receiptUCInstance = null; }
                 }
+
+                try { DisposeAndClearPanelChildren(scannedType_panel); } catch { }
+                try { DisposeAndClearPanelChildren(generateReceipt_panel); } catch { }
+
+                try
+                {
+                    var img = profile_pictureBox.Image;
+                    profile_pictureBox.Image = null;
+                    try { img?.Dispose(); } catch { }
+                }
+                catch { }
             }
-            catch
+            finally
             {
-                // ignore
+                base.OnHandleDestroyed(e);
             }
         }
     }

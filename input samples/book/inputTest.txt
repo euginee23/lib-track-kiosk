@@ -1,0 +1,93 @@
+Sample 1
+
+Title: The Great Gatsby
+
+Author: F. Scott Fitzgerald
+
+Genre: Fiction
+
+Publisher: Charles Scribner’s Sons
+
+Edition: 1st
+
+Year: 1925
+
+Qty: 3
+
+Shelf Location: Column B, Row 12
+
+Price: ₱450.00
+
+Donor: Donated by John Doe
+
+_________________________________________________________________
+
+Sample 2
+
+Title: Introduction to Algorithms
+
+Author: Thomas H. Cormen
+
+Genre: Non-fiction
+
+Publisher: MIT Press
+
+Edition: 4th
+
+Year: 2022
+
+Qty: 2
+
+Shelf Location: Column D, Row 5
+
+Price: ₱3,200.00
+
+Donor: (Leave blank if purchased)
+
+_________________________________________________________________
+
+Sample 3
+
+Title: Harry Potter and the Sorcerer’s Stone
+
+Author: J.K. Rowling
+
+Genre: Fantasy
+
+Publisher: Bloomsbury
+
+Edition: 2nd
+
+Year: 1998
+
+Qty: 5
+
+Shelf Location: Column A, Row 7
+
+Price: ₱600.00
+
+Donor: Donated by Rotary Club of Manila
+
+_________________________________________________________________
+
+Sample 4
+
+Title: Philippine History and Government
+
+Author: Gregorio Zaide
+
+Genre: Educational / History
+
+Publisher: Rex Book Store
+
+Edition: Revised Edition
+
+Year: 2018
+
+Qty: 10
+
+Shelf Location: Column F, Row 3
+
+Price: ₱850.00
+
+Donor: Donated by Department of Education

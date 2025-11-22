@@ -73,10 +73,13 @@ namespace lib_track_kiosk.sub_forms
                 _qrTimer = new System.Windows.Forms.Timer { Interval = 400 };
                 _qrTimer.Tick += QrTimer_Tick;
                 _qrTimer.Start();
+
+                LogDebug("Camera initialized successfully");
             }
             catch (Exception ex)
             {
                 status_label.Text = $"❌ Camera error: {ex.Message}";
+                LogDebug($"Camera initialization error: {ex}");
             }
         }
 
@@ -127,6 +130,7 @@ namespace lib_track_kiosk.sub_forms
 
                     string qrText = result.Text.Trim();
                     status_label.Text = "✅ QR detected: " + qrText;
+                    LogDebug($"QR Code detected: {qrText}");
 
                     await SendQrDataToBackend(qrText);
                 }
@@ -134,6 +138,7 @@ namespace lib_track_kiosk.sub_forms
             catch (Exception ex)
             {
                 status_label.Text = $"⚠️ Decode error: {ex.Message}";
+                LogDebug($"QR decode error: {ex}");
             }
             finally
             {
@@ -146,6 +151,8 @@ namespace lib_track_kiosk.sub_forms
         {
             try
             {
+                LogDebug($"Sending QR data to backend: {qrData}");
+
                 using (var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) })
                 {
                     var payload = new { qrData = qrData };
@@ -159,17 +166,20 @@ namespace lib_track_kiosk.sub_forms
                     catch (TaskCanceledException)
                     {
                         status_label.Text = "❌ Backend error: request timed out.";
+                        LogDebug("Backend request timed out");
                         RestartScan();
                         return;
                     }
                     catch (Exception ex)
                     {
                         status_label.Text = $"❌ Backend error: {ex.Message}";
+                        LogDebug($"Backend communication error: {ex}");
                         RestartScan();
                         return;
                     }
 
                     var responseContent = await response.Content.ReadAsStringAsync();
+                    LogDebug($"Backend response status: {response.StatusCode}, Content: {responseContent}");
 
                     // Try to parse JSON even for non-success status codes to show server message
                     JsonDocument doc;
@@ -183,11 +193,13 @@ namespace lib_track_kiosk.sub_forms
                         if (!response.IsSuccessStatusCode)
                         {
                             status_label.Text = $"❌ Backend error: {response.ReasonPhrase}";
+                            LogDebug($"Backend error (no JSON): {response.ReasonPhrase}");
                             RestartScan();
                             return;
                         }
 
                         status_label.Text = "❌ JSON parsing error: invalid backend response.";
+                        LogDebug("Invalid JSON response from backend");
                         RestartScan();
                         return;
                     }
@@ -212,6 +224,7 @@ namespace lib_track_kiosk.sub_forms
                                 ? msgEl.GetString()
                                 : (response.IsSuccessStatusCode ? "Unknown Error" : response.ReasonPhrase);
                             status_label.Text = $"⚠️ Error: {msg}";
+                            LogDebug($"Backend returned error: {msg}");
                             RestartScan();
                             return;
                         }
@@ -224,6 +237,7 @@ namespace lib_track_kiosk.sub_forms
                         if (!root.TryGetProperty("data", out var dataEl) || dataEl.ValueKind != JsonValueKind.Object)
                         {
                             status_label.Text = "⚠️ Invalid or missing data from backend.";
+                            LogDebug("Missing or invalid 'data' property in backend response");
                             RestartScan();
                             return;
                         }
@@ -271,6 +285,8 @@ namespace lib_track_kiosk.sub_forms
                             ScannedBookNumber = bookNumber;
                             ScannedResearchPaperId = null;
 
+                            LogDebug($"[SCAN RESULT] Type: Book, BookID: {bookId}, BookNumber: {bookNumber}");
+
                             // Try to extract book info for nicer status message (book title and cover URL may be available)
                             string bookTitle = null;
                             string bookCoverUrl = null;
@@ -296,6 +312,8 @@ namespace lib_track_kiosk.sub_forms
                             ScannedBookId = null;
                             ScannedBookNumber = null;
 
+                            LogDebug($"[SCAN RESULT] Type: Research Paper, ResearchPaperID: {researchPaperId}");
+
                             string paperTitle = null;
                             if (dataEl.TryGetProperty("researchPaper", out var rpEl) && rpEl.ValueKind == JsonValueKind.Object)
                             {
@@ -312,11 +330,12 @@ namespace lib_track_kiosk.sub_forms
                         {
                             ScannedType = "Unknown";
                             status_label.Text = $"⚠️ Unknown Type: {type ?? "null"}";
+                            LogDebug($"Unknown scanned type: {type}");
                             RestartScan();
                             return;
                         }
 
-                        // small delay so user can read the status_label
+                        // Small delay so user can read the status_label
                         await Task.Delay(700);
                         StopCamera();
                         this.DialogResult = DialogResult.OK;
@@ -327,6 +346,7 @@ namespace lib_track_kiosk.sub_forms
             catch (Exception ex)
             {
                 status_label.Text = $"❌ Backend communication error: {ex.Message}";
+                LogDebug($"Backend communication exception: {ex}");
                 RestartScan();
             }
         }
@@ -334,6 +354,7 @@ namespace lib_track_kiosk.sub_forms
         // RESTART SCAN METHOD
         private void RestartScan()
         {
+            LogDebug("Restarting scan...");
             _decodingActive = true;
             _qrTimer?.Start();
         }
@@ -358,8 +379,12 @@ namespace lib_track_kiosk.sub_forms
                 }
 
                 StopCamera();
+                LogDebug("Form closing - camera stopped");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                LogDebug($"Error during form closing: {ex}");
+            }
         }
 
         // STOP CAMERA METHOD
@@ -384,6 +409,7 @@ namespace lib_track_kiosk.sub_forms
             }
         }
 
+        // CANCEL BUTTON CLICK
         private void cancel_btn_Click(object sender, EventArgs e)
         {
             try
@@ -404,14 +430,22 @@ namespace lib_track_kiosk.sub_forms
                 StopCamera();
 
                 status_label.Text = "❌ Scan canceled.";
+                LogDebug("Scan canceled by user");
 
                 this.DialogResult = DialogResult.Cancel;
                 this.Close();
             }
             catch (Exception ex)
             {
+                LogDebug($"Error while canceling scan: {ex}");
                 MessageBox.Show($"Error while canceling scan: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        // DEBUG LOGGING HELPER
+        private void LogDebug(string message)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ScanBookQR {DateTime.Now:HH:mm:ss.fff}] {message}");
         }
     }
 }

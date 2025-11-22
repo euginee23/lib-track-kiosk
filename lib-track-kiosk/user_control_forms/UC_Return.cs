@@ -13,6 +13,7 @@ using System.Globalization;
 using System.Linq;
 using System.Drawing.Drawing2D;
 using System.Reflection;
+using System.Threading;
 
 namespace lib_track_kiosk.user_control_forms
 {
@@ -47,6 +48,12 @@ namespace lib_track_kiosk.user_control_forms
         private Image _xImageFixed;
         private const int IndicatorImageSize = 20; // fixed size in px
 
+        // Track if control is active
+        private bool _isActive = false;
+
+        // Cancellation token for async operations
+        private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+
         public UC_Return()
         {
             InitializeComponent();
@@ -54,10 +61,233 @@ namespace lib_track_kiosk.user_control_forms
             // Configure DataGridView so each column/cell supports multiline text wrapping
             SetupTransactionsGridAppearance();
 
+            // Wire up visibility changed events for cleanup
+            this.VisibleChanged += UC_Return_VisibleChanged;
             this.Load += UC_Return_Load;
+            this.Disposed += UC_Return_Disposed;
         }
 
-        // Configure transactions_DGV appearance and basic sizing
+        /// <summary>
+        /// Called when control visibility changes. Cleanup when hidden.
+        /// </summary>
+        private void UC_Return_VisibleChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                if (!this.Visible && _isActive)
+                {
+                    Console.WriteLine("🧹 UC_Return hidden - cleaning up memory...");
+                    CleanupMemory();
+                    _isActive = false;
+                }
+                else if (this.Visible && !_isActive)
+                {
+                    _isActive = true;
+                    Console.WriteLine("✓ UC_Return shown");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ UC_Return_VisibleChanged error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Public method to cleanup memory when leaving this control.
+        /// Call this from parent form before switching to another control.
+        /// </summary>
+        public void CleanupMemory()
+        {
+            try
+            {
+                Console.WriteLine("🧹 Starting memory cleanup for UC_Return...");
+
+                // Cancel any pending operations
+                try { _cts?.Cancel(); } catch { }
+
+                // Clear scanned items lists
+                scannedBooks?.Clear();
+                scannedResearchPapers?.Clear();
+
+                // Clear DataGridView and dispose images
+                try
+                {
+                    if (transactions_DGV != null)
+                    {
+                        // Dispose images in the Scanned column
+                        foreach (DataGridViewRow row in transactions_DGV.Rows)
+                        {
+                            try
+                            {
+                                if (transactions_DGV.Columns.Contains("Scanned"))
+                                {
+                                    var cell = row.Cells["Scanned"];
+                                    if (cell.Value is Image img && img != _checkImageFixed && img != _xImageFixed)
+                                    {
+                                        img.Dispose();
+                                    }
+                                    cell.Value = null;
+                                }
+                            }
+                            catch { }
+                        }
+
+                        transactions_DGV.Rows.Clear();
+                        transactions_DGV.Columns.Clear();
+                    }
+                }
+                catch { }
+
+                // Dispose profile picture
+                try
+                {
+                    if (profile_pictureBox != null && profile_pictureBox.Image != null)
+                    {
+                        var img = profile_pictureBox.Image;
+                        profile_pictureBox.Image = null;
+                        img.Dispose();
+                    }
+                }
+                catch { }
+
+                // Clear user data
+                currentUserId = null;
+                currentUserType = "Student";
+
+                // Clear labels
+                try
+                {
+                    if (fullName_lbl != null) fullName_lbl.Text = "";
+                    if (email_lbl != null) email_lbl.Text = "";
+                    if (contactNumber_lbl != null) contactNumber_lbl.Text = "";
+                    if (department_lbl != null) department_lbl.Text = "";
+                    if (position_lbl != null) position_lbl.Text = "";
+                    if (yearLevel_lbl != null) yearLevel_lbl.Text = "";
+                    if (pendingPenalties_lbl != null) pendingPenalties_lbl.Text = "0";
+                    if (fines_lbl != null) fines_lbl.Text = "₱0.00";
+                    if (booksCurrentlyBorrowed_lbl != null) booksCurrentlyBorrowed_lbl.Text = "0";
+                    if (maxBooksThatCanBorrow_lbl != null) maxBooksThatCanBorrow_lbl.Text = "0";
+                }
+                catch { }
+
+                // Force aggressive garbage collection
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+
+                long memoryAfter = GC.GetTotalMemory(false) / (1024 * 1024);
+                Console.WriteLine($"✓ Memory cleanup completed. Current memory: {memoryAfter}MB");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ CleanupMemory error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Public method to reload data when returning to this control.
+        /// </summary>
+        public async Task ReloadDataAsync()
+        {
+            try
+            {
+                Console.WriteLine("🔄 Reloading UC_Return data...");
+
+                if (currentUserId.HasValue)
+                {
+                    await FetchAndDisplayUserInformation(currentUserId.Value);
+                    await LoadSystemSettingsAsync();
+                    await UpdatePenaltyAndFinesAsync(currentUserId.Value);
+                    await UpdateBooksCurrentlyBorrowedAsync(currentUserId.Value);
+                    await LoadTransactionsForCurrentUserAsync();
+                }
+
+                Console.WriteLine("✓ UC_Return data reloaded");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ ReloadDataAsync error: {ex.Message}");
+            }
+        }
+
+        private void UC_Return_Disposed(object sender, EventArgs e)
+        {
+            Console.WriteLine("🗑️ UC_Return disposing...");
+
+            try { this.VisibleChanged -= UC_Return_VisibleChanged; } catch { }
+            try { this.Load -= UC_Return_Load; } catch { }
+
+            try { _cts?.Cancel(); } catch { }
+            try { _cts?.Dispose(); } catch { }
+
+            // Dispose fixed indicator images
+            try
+            {
+                _checkImageFixed?.Dispose();
+                _xImageFixed?.Dispose();
+                _checkImageFixed = null;
+                _xImageFixed = null;
+            }
+            catch { }
+
+            // Clear all data
+            try
+            {
+                scannedBooks?.Clear();
+                scannedResearchPapers?.Clear();
+            }
+            catch { }
+
+            // Dispose DataGridView images
+            try
+            {
+                if (transactions_DGV != null)
+                {
+                    foreach (DataGridViewRow row in transactions_DGV.Rows)
+                    {
+                        try
+                        {
+                            if (transactions_DGV.Columns.Contains("Scanned"))
+                            {
+                                var cell = row.Cells["Scanned"];
+                                if (cell.Value is Image img)
+                                {
+                                    cell.Value = null;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    transactions_DGV.Rows.Clear();
+                }
+            }
+            catch { }
+
+            // Dispose profile picture
+            try
+            {
+                if (profile_pictureBox != null && profile_pictureBox.Image != null)
+                {
+                    var img = profile_pictureBox.Image;
+                    profile_pictureBox.Image = null;
+                    img.Dispose();
+                }
+            }
+            catch { }
+
+            // Force final cleanup
+            try
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            }
+            catch { }
+
+            Console.WriteLine("✓ UC_Return disposed");
+        }
+
+        // Configure DataGridView so each column/cell supports multiline text wrapping
         private void SetupTransactionsGridAppearance()
         {
             if (transactions_DGV == null)
@@ -107,58 +337,71 @@ namespace lib_track_kiosk.user_control_forms
         // 🔹 Load event — open ScanFingerprint
         private async void UC_Return_Load(object sender, EventArgs e)
         {
-            using (var scanFingerprint = new ScanFingerprint())
+            try
             {
-                var result = scanFingerprint.ShowDialog();
-
-                // ❌ Cancel → return to Welcome screen
-                if (result == DialogResult.Cancel)
+                using (var scanFingerprint = new ScanFingerprint())
                 {
-                    MainForm mainForm = (MainForm)this.ParentForm;
-                    if (mainForm != null)
-                    {
-                        UC_Welcome welcomeScreen = new UC_Welcome();
-                        mainForm.addUserControl(welcomeScreen);
-                    }
-                    return;
-                }
+                    var result = scanFingerprint.ShowDialog();
 
-                // ✅ Success → get user ID and load info
-                if (result == DialogResult.OK)
-                {
-                    int? userId = scanFingerprint.ScannedUserId;
-                    if (!userId.HasValue)
+                    // ❌ Cancel → return to Welcome screen
+                    if (result == DialogResult.Cancel)
                     {
-                        MessageBox.Show("⚠️ No valid user detected.");
+                        CleanupMemory(); // Cleanup before leaving
+
+                        MainForm mainForm = (MainForm)this.ParentForm;
+                        if (mainForm != null)
+                        {
+                            UC_Welcome welcomeScreen = new UC_Welcome();
+                            mainForm.addUserControl(welcomeScreen);
+                        }
                         return;
                     }
 
-                    currentUserId = userId;
-                    await FetchAndDisplayUserInformation(userId.Value);
-
-                    // Load system settings (fines / borrow days)
-                    await LoadSystemSettingsAsync();
-
-                    // After loading user info, update penalties/fines and currently borrowed counts and transactions
-                    var (penaltyCount, totalFines) = await UpdatePenaltyAndFinesAsync(userId.Value);
-                    int borrowedCount = await UpdateBooksCurrentlyBorrowedAsync(userId.Value);
-
-                    // Show borrowing limit (from settings)
-                    try
+                    // ✅ Success → get user ID and load info
+                    if (result == DialogResult.OK)
                     {
-                        string userType = currentUserType ?? "Student";
-                        var (_, _, studentMaxBooks, facultyMaxBooks) = await lib_track_kiosk.configs.SystemSettingsFetcher.GetBorrowingLimitsAsync();
-                        int maxBooks = userType.Equals("Student", StringComparison.OrdinalIgnoreCase) ? studentMaxBooks : facultyMaxBooks;
-                        maxBooksThatCanBorrow_lbl.Text = maxBooks.ToString();
-                    }
-                    catch
-                    {
-                        maxBooksThatCanBorrow_lbl.Text = "N/A";
-                    }
+                        int? userId = scanFingerprint.ScannedUserId;
+                        if (!userId.HasValue)
+                        {
+                            MessageBox.Show("⚠️ No valid user detected.");
+                            CleanupMemory();
+                            return;
+                        }
 
-                    // After the counts are visible, load transaction rows
-                    await LoadTransactionsForCurrentUserAsync();
+                        currentUserId = userId;
+                        _isActive = true;
+
+                        await FetchAndDisplayUserInformation(userId.Value);
+
+                        // Load system settings (fines / borrow days)
+                        await LoadSystemSettingsAsync();
+
+                        // After loading user info, update penalties/fines and currently borrowed counts and transactions
+                        var (penaltyCount, totalFines) = await UpdatePenaltyAndFinesAsync(userId.Value);
+                        int borrowedCount = await UpdateBooksCurrentlyBorrowedAsync(userId.Value);
+
+                        // Show borrowing limit (from settings)
+                        try
+                        {
+                            string userType = currentUserType ?? "Student";
+                            var (_, _, studentMaxBooks, facultyMaxBooks) = await lib_track_kiosk.configs.SystemSettingsFetcher.GetBorrowingLimitsAsync();
+                            int maxBooks = userType.Equals("Student", StringComparison.OrdinalIgnoreCase) ? studentMaxBooks : facultyMaxBooks;
+                            maxBooksThatCanBorrow_lbl.Text = maxBooks.ToString();
+                        }
+                        catch
+                        {
+                            maxBooksThatCanBorrow_lbl.Text = "N/A";
+                        }
+
+                        // After the counts are visible, load transaction rows
+                        await LoadTransactionsForCurrentUserAsync();
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ UC_Return_Load error: {ex.Message}");
+                MessageBox.Show($"Error loading return screen: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -178,6 +421,18 @@ namespace lib_track_kiosk.user_control_forms
                 yearLevel_lbl.Text = yearLevel;
 
                 currentUserType = string.IsNullOrWhiteSpace(position) ? "Student" : position;
+
+                // Dispose old profile picture before assigning new one
+                try
+                {
+                    if (profile_pictureBox.Image != null && profile_pictureBox.Image != profilePhoto)
+                    {
+                        var oldImg = profile_pictureBox.Image;
+                        profile_pictureBox.Image = null;
+                        oldImg.Dispose();
+                    }
+                }
+                catch { }
 
                 if (profilePhoto != null)
                 {
@@ -220,11 +475,22 @@ namespace lib_track_kiosk.user_control_forms
         // 🔹 Exit button — go back to Welcome screen
         private void exitReturn_btn_Click(object sender, EventArgs e)
         {
-            MainForm mainForm = (MainForm)this.ParentForm;
-            if (mainForm != null)
+            try
             {
-                UC_Welcome welcomeScreen = new UC_Welcome();
-                mainForm.addUserControl(welcomeScreen);
+                Console.WriteLine("🚪 Exiting Return screen...");
+
+                CleanupMemory(); // Cleanup before leaving
+
+                MainForm mainForm = (MainForm)this.ParentForm;
+                if (mainForm != null)
+                {
+                    UC_Welcome welcomeScreen = new UC_Welcome();
+                    mainForm.addUserControl(welcomeScreen);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ exitReturn_btn_Click error: {ex.Message}");
             }
         }
 
@@ -310,7 +576,6 @@ namespace lib_track_kiosk.user_control_forms
                 if (id.HasValue && !IsBookAlreadyScanned(id.Value, LastScannedBookNumber))
                 {
                     scannedBooks.Add((id.Value, LastScannedBookNumber));
-                    // Mark matching transaction row as scanned (check the right-side column)
                     MarkTransactionRowAsScanned(id.Value, LastScannedBookNumber);
                 }
             }
@@ -319,7 +584,6 @@ namespace lib_track_kiosk.user_control_forms
                 if (id.HasValue && !IsResearchPaperAlreadyScanned(id.Value))
                 {
                     scannedResearchPapers.Add(id.Value);
-                    // Mark research row if present
                     MarkTransactionRowAsScanned(null, null, researchPaperId: id.Value);
                 }
             }
@@ -332,8 +596,6 @@ namespace lib_track_kiosk.user_control_forms
         }
 
         // ---------- Load transactions for the current user and populate transactions_DGV ----------
-        // This uses the TransactionsFetcher helper to get the JArray and then maps to rows.
-        // It also uses PenaltiesFetcher to show penalty status verbatim and uses the API 'status' field as authoritative when present.
         private async Task LoadTransactionsForCurrentUserAsync()
         {
             if (!currentUserId.HasValue)
@@ -341,21 +603,17 @@ namespace lib_track_kiosk.user_control_forms
 
             try
             {
-                // Use TransactionsFetcher helper to get the JArray of transactions
                 var data = await TransactionsFetcher.GetTransactionsForUserAsync(currentUserId.Value);
 
-                // Optional: show raw response for debugging
                 if (_debugShowRawApiResponse)
                 {
                     try { ShowRawJsonDialog(data.ToString(Newtonsoft.Json.Formatting.Indented)); } catch { }
                 }
 
-                // Fetch penalties once and map ALL penalty statuses per transaction_id (if any)
-                // Also build penaltyFinesByTransaction so we can prefer penalty amounts when transaction doesn't include total_fine.
                 var penalties = await PenaltiesFetcher.GetPenaltiesForUserAsync(currentUserId.Value);
                 var penaltiesByTransaction = new Dictionary<int, List<string>>();
                 var penaltyFinesByTransaction = new Dictionary<int, double>();
-                var latestPenaltyByTransaction = new Dictionary<int, JToken>(); // preserve for any "latest" status checks if needed
+                var latestPenaltyByTransaction = new Dictionary<int, JToken>();
 
                 if (penalties != null)
                 {
@@ -372,7 +630,6 @@ namespace lib_track_kiosk.user_control_forms
                         }
                         list.Add(status);
 
-                        // accumulate fine value (best-effort parsing)
                         double fineVal = 0.0;
                         var fineToken = p["fine"];
                         if (fineToken != null && fineToken.Type != JTokenType.Null)
@@ -397,7 +654,6 @@ namespace lib_track_kiosk.user_control_forms
                         else
                             penaltyFinesByTransaction[txId.Value] = acc + fineVal;
 
-                        // maintain latestPenaltyByTransaction similar to original logic (by updated_at or id)
                         if (!latestPenaltyByTransaction.TryGetValue(txId.Value, out var existing))
                         {
                             latestPenaltyByTransaction[txId.Value] = p;
@@ -428,7 +684,6 @@ namespace lib_track_kiosk.user_control_forms
                     return;
                 }
 
-                // Build rows to add.
                 var rows = new List<(object[] Cells, int? bookId, int? researchId, string referenceNumber)>();
 
                 foreach (var t in data)
@@ -492,17 +747,14 @@ namespace lib_track_kiosk.user_control_forms
                             dueDate = dd.ToString();
                     }
 
-                    // Read API-provided status fields - prefer normalized "status" (TransactionsFetcher already normalizes) but accept alternatives
                     string apiStatusCandidate1 = t.Value<string>("status") ?? "";
                     string apiStatusCandidate2 = t.Value<string>("transaction_status") ?? "";
                     string apiType = t.Value<string>("transaction_type") ?? "";
                     string apiStatusRaw = (!string.IsNullOrWhiteSpace(apiStatusCandidate1) ? apiStatusCandidate1 : (!string.IsNullOrWhiteSpace(apiStatusCandidate2) ? apiStatusCandidate2 : apiType ?? "")).Trim();
 
-                    // ---------- TOTAL FINE: prefer backend value, otherwise sum penalties for this transaction, otherwise compute overdue fine ----------
                     double txFineValue = 0.0;
                     bool backendFineFound = false;
 
-                    // prefer server-provided fields if present
                     var totalFineToken = t["total_fine"] ?? t["fine_amount"] ?? t["totalFine"];
                     if (totalFineToken != null && totalFineToken.Type != JTokenType.Null)
                     {
@@ -520,7 +772,6 @@ namespace lib_track_kiosk.user_control_forms
 
                     if (!backendFineFound)
                     {
-                        // try penalty sum for this transaction
                         int txIdForFine = t.Value<int?>("transaction_id") ?? t.Value<int?>("id") ?? 0;
                         if (txIdForFine != 0 && penaltyFinesByTransaction.TryGetValue(txIdForFine, out var penaltySum) && penaltySum > 0)
                         {
@@ -528,7 +779,6 @@ namespace lib_track_kiosk.user_control_forms
                         }
                         else
                         {
-                            // fallback: compute overdue fine from due_date if overdue
                             if (parsedDueDate.HasValue)
                             {
                                 var today = DateTime.Now.Date;
@@ -553,13 +803,10 @@ namespace lib_track_kiosk.user_control_forms
                         }
                     }
 
-                    string totalFine = txFineValue.ToString("N2"); // format like "0.00" or "35.00"
+                    string totalFine = txFineValue.ToString("N2");
 
-                    // --- SIMPLE COMBINED DISPLAY (transaction status verbatim + penalty statuses verbatim) ---
-                    // Format: "{transaction_status}  ·  {penalty_statuses|No Penalty}"
                     string displayStatus = GetTransactionAndPenaltyDisplayStatus((JObject)t, penaltiesByTransaction);
 
-                    // Visible cells in the grid (8 columns expected by the existing UI)
                     var visibleCells = new object[]
                     {
                         type,
@@ -596,10 +843,6 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        /// <summary>
-        /// Populates the transactions DataGridView.
-        /// Creates columns with proper FillWeight and a small image column for scanned indicator that fits the grid.
-        /// </summary>
         private void PopulateTransactionsGrid(List<(object[] Cells, int? bookId, int? researchId, string referenceNumber)> rows)
         {
             try
@@ -607,16 +850,13 @@ namespace lib_track_kiosk.user_control_forms
                 transactions_DGV.SuspendLayout();
                 transactions_DGV.Rows.Clear();
 
-                // Recreate columns to ensure consistent column order and sizing.
                 SetupColumnsForTransactionsGrid();
 
-                // Add rows and populate hidden id columns
                 foreach (var r in rows)
                 {
                     int newIndex = transactions_DGV.Rows.Add();
                     var dgvRow = transactions_DGV.Rows[newIndex];
 
-                    // assign visible values by column name to avoid position issues
                     SetCellValueSafe(dgvRow, "Type", r.Cells.ElementAtOrDefault(0));
                     SetCellValueSafe(dgvRow, "Title", r.Cells.ElementAtOrDefault(1));
                     SetCellValueSafe(dgvRow, "Authors", r.Cells.ElementAtOrDefault(2));
@@ -626,15 +866,11 @@ namespace lib_track_kiosk.user_control_forms
                     SetCellValueSafe(dgvRow, "Status", r.Cells.ElementAtOrDefault(6));
                     SetCellValueSafe(dgvRow, "TotalFine", r.Cells.ElementAtOrDefault(7));
 
-                    // default unscanned indicator = X (fixed size)
                     dgvRow.Cells["Scanned"].Value = _xImageFixed;
 
-                    // Put ids into hidden columns
                     dgvRow.Cells["book_id_hidden"].Value = r.bookId.HasValue ? r.bookId.Value.ToString() : "";
                     dgvRow.Cells["research_id_hidden"].Value = r.researchId.HasValue ? r.researchId.Value.ToString() : "";
 
-                    // If this row corresponds to any already scanned book, mark it checked — but only if the transaction row is active.
-                    // We avoid marking returned/done/reserved transactions.
                     string rowStatusString = r.Cells.ElementAtOrDefault(6)?.ToString() ?? "";
 
                     if (r.bookId.HasValue && scannedBooks.Any(s => s.bookId == r.bookId.Value))
@@ -660,14 +896,12 @@ namespace lib_track_kiosk.user_control_forms
                     }
                 }
 
-                // After adding rows, auto-resize row heights to fit wrapped content
                 transactions_DGV.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
 
-                // Ensure the indicator column retains fixed width and the image stays centered
                 if (transactions_DGV.Columns.Contains("Scanned"))
                 {
                     var col = transactions_DGV.Columns["Scanned"];
-                    col.Width = IndicatorImageSize + 12; // padding
+                    col.Width = IndicatorImageSize + 12;
                     col.MinimumWidth = IndicatorImageSize + 8;
                     col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                     col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
@@ -675,7 +909,6 @@ namespace lib_track_kiosk.user_control_forms
 
                 transactions_DGV.ResumeLayout();
 
-                // Optional: set a reasonable minimum row height
                 int minHeight = 28;
                 foreach (DataGridViewRow rr in transactions_DGV.Rows)
                 {
@@ -689,45 +922,34 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Ensure grid has the desired columns and fill weights so Scanned icon remains visible.
         private void SetupColumnsForTransactionsGrid()
         {
-            // Recreate columns to ensure consistent layout
             transactions_DGV.Columns.Clear();
 
-            // Type
             var typeCol = new DataGridViewTextBoxColumn { Name = "Type", HeaderText = "Type", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 8 };
             transactions_DGV.Columns.Add(typeCol);
 
-            // Title - give most space
             var titleCol = new DataGridViewTextBoxColumn { Name = "Title", HeaderText = "Title", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 30 };
             transactions_DGV.Columns.Add(titleCol);
 
-            // Authors
             var authorsCol = new DataGridViewTextBoxColumn { Name = "Authors", HeaderText = "Author(s)", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 18 };
             transactions_DGV.Columns.Add(authorsCol);
 
-            // Reference Number
             var refCol = new DataGridViewTextBoxColumn { Name = "ReferenceNumber", HeaderText = "Reference Number", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 12 };
             transactions_DGV.Columns.Add(refCol);
 
-            // Transaction Date
             var txDateCol = new DataGridViewTextBoxColumn { Name = "TransactionDate", HeaderText = "Transaction Date", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 10 };
             transactions_DGV.Columns.Add(txDateCol);
 
-            // Due Date
             var dueDateCol = new DataGridViewTextBoxColumn { Name = "DueDate", HeaderText = "Due Date", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 10 };
             transactions_DGV.Columns.Add(dueDateCol);
 
-            // Status
             var statusCol = new DataGridViewTextBoxColumn { Name = "Status", HeaderText = "Status", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 10 };
             transactions_DGV.Columns.Add(statusCol);
 
-            // Total Fine
             var fineCol = new DataGridViewTextBoxColumn { Name = "TotalFine", HeaderText = "Total Fine", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 6 };
             transactions_DGV.Columns.Add(fineCol);
 
-            // Scanned image column (small fixed width)
             var imgCol = new DataGridViewImageColumn
             {
                 Name = "Scanned",
@@ -737,20 +959,17 @@ namespace lib_track_kiosk.user_control_forms
             };
             transactions_DGV.Columns.Add(imgCol);
 
-            // Hidden id columns for mapping (not visible)
             var idCol = new DataGridViewTextBoxColumn { Name = "book_id_hidden", HeaderText = "book_id_hidden", Visible = false };
             transactions_DGV.Columns.Add(idCol);
             var rCol = new DataGridViewTextBoxColumn { Name = "research_id_hidden", HeaderText = "research_id_hidden", Visible = false };
             transactions_DGV.Columns.Add(rCol);
 
-            // Column styles
             foreach (DataGridViewColumn col in transactions_DGV.Columns)
             {
                 col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
                 col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.TopLeft;
             }
 
-            // Make sure the Scanned column alignment is center so our fixed image is centered
             try
             {
                 transactions_DGV.Columns["Scanned"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
@@ -761,19 +980,15 @@ namespace lib_track_kiosk.user_control_forms
             catch { }
         }
 
-        // Safe helper to set a cell value by column name if present
         private void SetCellValueSafe(DataGridViewRow row, string columnName, object value)
         {
             if (row == null || row.DataGridView == null) return;
             if (!row.DataGridView.Columns.Contains(columnName)) return;
             row.Cells[columnName].Value = value;
-            // Ensure wrap for text columns
             row.Cells[columnName].Style.WrapMode = DataGridViewTriState.True;
             row.Cells[columnName].Style.Alignment = DataGridViewContentAlignment.TopLeft;
         }
 
-        // Mark a transaction row as scanned by matching bookId, bookNumber or researchPaperId
-        // This only sets the image in the Scanned cell (no row background changes)
         private void MarkTransactionRowAsScanned(int? bookId, string bookNumber = null, int? researchPaperId = null)
         {
             try
@@ -791,7 +1006,6 @@ namespace lib_track_kiosk.user_control_forms
 
                 foreach (DataGridViewRow row in transactions_DGV.Rows)
                 {
-                    // match by hidden book id
                     if (bookId.HasValue && transactions_DGV.Columns.Contains("book_id_hidden"))
                     {
                         var cellVal = row.Cells["book_id_hidden"].Value?.ToString();
@@ -802,7 +1016,6 @@ namespace lib_track_kiosk.user_control_forms
                         }
                     }
 
-                    // match by hidden research id
                     if (researchPaperId.HasValue && transactions_DGV.Columns.Contains("research_id_hidden"))
                     {
                         var cellVal = row.Cells["research_id_hidden"].Value?.ToString();
@@ -813,7 +1026,6 @@ namespace lib_track_kiosk.user_control_forms
                         }
                     }
 
-                    // match by reference/book number cell (visible column ReferenceNumber)
                     if (!string.IsNullOrEmpty(bookNumber) && transactions_DGV.Columns.Contains("ReferenceNumber"))
                     {
                         var rv = row.Cells["ReferenceNumber"].Value?.ToString();
@@ -828,7 +1040,6 @@ namespace lib_track_kiosk.user_control_forms
                 if (candidates.Count == 0)
                     return;
 
-                // Prefer an active transaction row (not Returned / Done / Reserved). If none active, fall back to first candidate.
                 var chosen = candidates.FirstOrDefault(r => IsRowActiveTransaction(r)) ?? candidates.First();
 
                 chosen.Cells["Scanned"].Value = _checkImageFixed;
@@ -839,18 +1050,12 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // PopulateTransactionsGrid helper (keeps previous behaviour)
         private void PopulateTransactionsGrid(List<object[]> rows)
         {
-            // Keep this overload to avoid breaking existing calls if any external code uses it.
-            // It converts to the new expected tuple format with empty ids.
             var converted = rows.Select(r => (Cells: r, bookId: (int?)null, researchId: (int?)null, referenceNumber: r.Length > 3 ? r[3]?.ToString() ?? "" : "")).ToList();
             PopulateTransactionsGrid(converted);
         }
 
-        // -------- image creation utilities (fixed-size assets) --------
-
-        // Create fixed-size check icon (green circle + white check)
         private Image CreateCheckImage(int px)
         {
             try
@@ -885,7 +1090,6 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Create fixed-size X icon (gray box with X)
         private Image CreateXImage(int px)
         {
             try
@@ -896,7 +1100,6 @@ namespace lib_track_kiosk.user_control_forms
                     g.Clear(Color.Transparent);
                     g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-                    // small light gray square background with border
                     using (var brush = new SolidBrush(Color.FromArgb(245, 245, 245)))
                     {
                         g.FillRectangle(brush, 0, 0, IndicatorImageSize - 1, IndicatorImageSize - 1);
@@ -906,7 +1109,6 @@ namespace lib_track_kiosk.user_control_forms
                         g.DrawRectangle(pen, 0, 0, IndicatorImageSize - 1, IndicatorImageSize - 1);
                     }
 
-                    // draw X
                     using (var pen = new Pen(Color.FromArgb(120, 120, 120), 2f))
                     {
                         pen.StartCap = LineCap.Round;
@@ -923,10 +1125,6 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Fetch penalties for the current user and update labels:
-        // pendingPenalties_lbl => count of unpaid penalties
-        // fines_lbl => sum of fines for unpaid penalties (computed from returned penalties array to avoid backend string-concat bugs)
-        // Returns a tuple (unpaidCount, computedFines)
         private async Task<(int totalCount, double totalFines)> UpdatePenaltyAndFinesAsync(int userId)
         {
             try
@@ -1005,10 +1203,6 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Fetch transactions for the current user and update booksCurrentlyBorrowed_lbl.
-        // Count individual items that are considered still "borrowed".
-        // Exclude those with status == "Returned" or status == "Done".
-        // Returns the computed borrowed items count so caller can make decisions.
         private async Task<int> UpdateBooksCurrentlyBorrowedAsync(int userId)
         {
             try
@@ -1045,7 +1239,6 @@ namespace lib_track_kiosk.user_control_forms
                     {
                         string status = tx["status"]?.Value<string>() ?? string.Empty;
 
-                        // Exclude transactions that are already returned or done.
                         if (status.Equals("Returned", StringComparison.OrdinalIgnoreCase) ||
                             status.Equals("Done", StringComparison.OrdinalIgnoreCase))
                         {
@@ -1067,7 +1260,6 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Public refresh method so other code can force a reload after returns processed
         public async Task RefreshTransactionsAsync()
         {
             await LoadTransactionsForCurrentUserAsync();
@@ -1075,21 +1267,18 @@ namespace lib_track_kiosk.user_control_forms
 
         private async void return_btn_Click(object sender, EventArgs e)
         {
-            // Basic validations
             if (!currentUserId.HasValue)
             {
                 MessageBox.Show("No user loaded. Please scan user fingerprint first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Ensure there is at least one scanned item
             if (!scannedBooks.Any() && !scannedResearchPapers.Any())
             {
                 MessageBox.Show("No scanned items to return. Please scan book(s) or research paper(s) before returning.", "Nothing scanned", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            // Attempt to determine reference number from the grid.
             string referenceNumber = GetReferenceNumberFromGrid();
             if (string.IsNullOrWhiteSpace(referenceNumber))
             {
@@ -1097,21 +1286,17 @@ namespace lib_track_kiosk.user_control_forms
                 return;
             }
 
-            // Confirm action with the user
             string confirmMsg = $"You are about to return {scannedBooks.Count} book(s) and {scannedResearchPapers.Count} research paper(s) under reference '{referenceNumber}'.\n\nProceed?";
             var confirm = MessageBox.Show(confirmMsg, "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (confirm != DialogResult.Yes) return;
 
-            // Disable return button while processing
             try
             {
                 return_btn.Enabled = false;
 
-                // Prepare ids
                 var bookIds = scannedBooks.Select(s => s.bookId).ToList();
                 var researchIds = scannedResearchPapers.ToList();
 
-                // Call helper to post to server
                 var result = await ReturnBookResearch.ReturnAsync(referenceNumber, currentUserId.Value, bookIds, researchIds);
 
                 if (result == null)
@@ -1122,7 +1307,6 @@ namespace lib_track_kiosk.user_control_forms
 
                 if (result.Success)
                 {
-                    // Show success summary
                     var sb = new System.Text.StringBuilder();
                     sb.AppendLine(result.Message ?? "Return completed.");
                     sb.AppendLine($"Reference: {result.ReferenceNumber}");
@@ -1146,10 +1330,8 @@ namespace lib_track_kiosk.user_control_forms
 
                     MessageBox.Show(sb.ToString(), "Return Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    // --- Open Rate dialog for each returned item (if any) BEFORE PostAssessmentSurvey ---
                     try
                     {
-                        // If server returned explicit ReturnedItems array, iterate that and rate each element.
                         if (result.ReturnedItems != null && result.ReturnedItems.Any())
                         {
                             foreach (var it in result.ReturnedItems)
@@ -1162,7 +1344,6 @@ namespace lib_track_kiosk.user_control_forms
 
                                     if (itemId.HasValue && !string.IsNullOrWhiteSpace(itemType) && currentUserId.HasValue)
                                     {
-                                        // Show Rate dialog for this item (modal, sequential)
                                         using (var rate = new Rate(currentUserId.Value, itemType, itemId, itemTitle))
                                         {
                                             var owner = this.FindForm();
@@ -1176,15 +1357,12 @@ namespace lib_track_kiosk.user_control_forms
                                 }
                                 catch (Exception ex)
                                 {
-                                    // If one item fails, log and continue with other items
                                     Console.Error.WriteLine("Failed to show Rate dialog for one returned item: " + ex);
                                 }
                             }
                         }
                         else
                         {
-                            // Fallback: if no ReturnedItems in server response, rate scanned items that were returned.
-                            // Rate every scanned research paper
                             foreach (var rid in scannedResearchPapers.ToList())
                             {
                                 try
@@ -1208,7 +1386,6 @@ namespace lib_track_kiosk.user_control_forms
                                 }
                             }
 
-                            // Rate every scanned book
                             foreach (var b in scannedBooks.ToList())
                             {
                                 try
@@ -1235,11 +1412,9 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     catch (Exception ex)
                     {
-                        // If rating dialogs fail for any reason, log but continue to survey and navigation.
                         Console.Error.WriteLine("Failed to show rating dialogs: " + ex);
                     }
 
-                    // --- Show PostAssessmentSurvey last ---
                     try
                     {
                         using (var survey = new PostAssessmentSurvey())
@@ -1254,20 +1429,19 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     catch (Exception ex)
                     {
-                        // If survey fails to open for any reason, log but continue the flow.
                         Console.Error.WriteLine("Failed to show PostAssessmentSurvey: " + ex);
                     }
 
-                    // Clear scanned lists
                     scannedBooks.Clear();
                     scannedResearchPapers.Clear();
 
-                    // Refresh transactions and penalty/fine counts (best-effort — safe to call)
                     await RefreshTransactionsAsync();
                     await UpdatePenaltyAndFinesAsync(currentUserId.Value);
                     await UpdateBooksCurrentlyBorrowedAsync(currentUserId.Value);
 
-                    // AFTER SUCCESS: go back to Welcome screen
+                    // Cleanup before navigating
+                    CleanupMemory();
+
                     try
                     {
                         MainForm mainForm = (MainForm)this.ParentForm;
@@ -1275,24 +1449,20 @@ namespace lib_track_kiosk.user_control_forms
                         {
                             UC_Welcome welcomeScreen = new UC_Welcome();
                             mainForm.addUserControl(welcomeScreen);
-                            return; // stop further processing in this handler
+                            return;
                         }
                     }
-                    catch
-                    {
-                        // ignore navigation errors — we've already completed the return
-                    }
+                    catch { }
                 }
                 else
                 {
-                    // Non-success: try to show helpful info
                     if (result.ExpectedItems != null || result.ProvidedItems != null)
                     {
                         var expected = result.ExpectedItems;
                         var provided = result.ProvidedItems;
 
                         string msg = result.Message ?? "Server rejected the return request.";
-                        msg += Environment.NewLine + Environment.NewLine;
+                        msg += Environment.NewLine+Environment.NewLine;
                         msg += "Expected items (must be returned together):" + Environment.NewLine;
                         if (expected != null)
                         {
@@ -1317,7 +1487,6 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     else if (result.HttpStatusCode == 402 && result.PenaltyChecks != null)
                     {
-                        // Unpaid penalties
                         string msg = "Cannot return items due to unpaid penalties. Details:" + Environment.NewLine;
                         try
                         {
@@ -1342,14 +1511,11 @@ namespace lib_track_kiosk.user_control_forms
                     }
                     else
                     {
-                        // Generic error
                         string err = result.Message ?? "Return failed.";
                         MessageBox.Show($"{err}\n\nServer response code: {result.HttpStatusCode}", "Return Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
-                        // If ExpectedItems exist but were not parsed into result fields, try to show raw JSON
                         if (!string.IsNullOrEmpty(result.RawJson))
                         {
-                            // Offer to show more details
                             var viewDetails = MessageBox.Show("Show server response for debugging?", "Details", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                             if (viewDetails == DialogResult.Yes)
                             {
@@ -1369,21 +1535,18 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Helper: pick a reference number for the current set of loaded transactions
         private string GetReferenceNumberFromGrid()
         {
             try
             {
                 if (transactions_DGV == null || transactions_DGV.Rows.Count == 0) return null;
 
-                // Prefer first non-empty ReferenceNumber cell
                 foreach (DataGridViewRow r in transactions_DGV.Rows)
                 {
                     var v = r.Cells["ReferenceNumber"]?.Value?.ToString();
                     if (!string.IsNullOrEmpty(v)) return v.Trim();
                 }
 
-                // fallback to cell at index 3 (old layout)
                 if (transactions_DGV.Columns.Count > 3)
                 {
                     var v = transactions_DGV.Rows[0].Cells[3]?.Value?.ToString();
@@ -1398,7 +1561,6 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
-        // Helper: Format expected/provided items token into readable string
         private string FormatItemsFromToken(JToken token)
         {
             if (token == null) return "";
@@ -1428,7 +1590,6 @@ namespace lib_track_kiosk.user_control_forms
             return sb.ToString();
         }
 
-        // Helper: show raw JSON response in a simple dialog for debugging
         private void ShowRawJsonDialog(string json)
         {
             try
@@ -1452,25 +1613,21 @@ namespace lib_track_kiosk.user_control_forms
                 dlg.Controls.Add(tb);
                 dlg.ShowDialog();
             }
-            catch { /* ignore errors showing dialog */ }
+            catch { }
         }
 
-        // Helper: decide if a status string indicates an active (borrowed) transaction.
-        // Treat statuses containing "return", "returned", "done", "reserve" as not-active.
         private bool IsStatusActiveString(string status)
         {
             if (string.IsNullOrWhiteSpace(status))
-                return true; // assume active if unknown (safe default)
+                return true;
 
             string s = status.ToLowerInvariant();
             if (s.Contains("return") || s.Contains("returned") || s.Contains("done") || s.Contains("reserve") || s.Contains("reserved"))
                 return false;
 
-            // For statuses like "overdue" or "due today" or "active" or "pending payment" -> treat as active
             return true;
         }
 
-        // Helper: decide if a DataGridViewRow represents an active transaction row
         private bool IsRowActiveTransaction(DataGridViewRow row)
         {
             if (row == null) return true;
@@ -1483,7 +1640,7 @@ namespace lib_track_kiosk.user_control_forms
                     return IsStatusActiveString(statusStr);
                 }
             }
-            catch { /* ignore */ }
+            catch { }
             return true;
         }
 
@@ -1491,7 +1648,6 @@ namespace lib_track_kiosk.user_control_forms
         {
             if (tx == null) return "Unknown  ·  No Penalty";
 
-            // preserve backend-provided transaction status (try several possible keys)
             string transactionStatus = tx.Value<string>("status")
                                        ?? tx.Value<string>("transaction_status")
                                        ?? tx.Value<string>("transaction_type")
@@ -1500,11 +1656,9 @@ namespace lib_track_kiosk.user_control_forms
             transactionStatus = transactionStatus?.Trim();
             if (string.IsNullOrEmpty(transactionStatus))
             {
-                // If backend left it empty, show explicit "Unknown" instead of inventing semantics.
                 transactionStatus = "Unknown";
             }
 
-            // determine transaction id (try common names)
             int txId = tx.Value<int?>("transaction_id")
                        ?? tx.Value<int?>("id")
                        ?? tx.Value<int?>("transactionId")
@@ -1513,11 +1667,9 @@ namespace lib_track_kiosk.user_control_forms
             string penaltyPart = "No Penalty";
             if (txId != 0 && penaltiesByTransaction != null && penaltiesByTransaction.TryGetValue(txId, out var pStatuses) && pStatuses.Count > 0)
             {
-                // preserve exactly what the backend provided, deduplicate identical strings
                 var distinct = pStatuses.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).Distinct(StringComparer.Ordinal).ToList();
                 if (distinct.Count == 0)
                 {
-                    // fallback: if statuses are empty but penalties exist, show "Unknown"
                     penaltyPart = "Unknown";
                 }
                 else
@@ -1529,11 +1681,6 @@ namespace lib_track_kiosk.user_control_forms
             return $"{transactionStatus}  ·  {penaltyPart}";
         }
 
-        // -----------------------------------------------------------------------
-        // Helpers moved to class-level so they are available anywhere in the method
-        // -----------------------------------------------------------------------
-
-        // Extract string property from either a JObject or a POCO/dynamic object
         private string GetObjectStringProp(object obj, params string[] names)
         {
             if (obj == null) return null;
@@ -1542,7 +1689,6 @@ namespace lib_track_kiosk.user_control_forms
             {
                 foreach (var n in names)
                 {
-                    // try SelectToken first (handles nested or different casing)
                     var v = jo.SelectToken(n, false) ?? jo.SelectToken(n.Replace("_", ""), false);
                     if (v != null && v.Type != JTokenType.Null)
                     {
@@ -1551,7 +1697,6 @@ namespace lib_track_kiosk.user_control_forms
                     }
                 }
 
-                // also try properties with different casings
                 foreach (var prop in jo.Properties())
                 {
                     foreach (var n in names)
@@ -1584,7 +1729,6 @@ namespace lib_track_kiosk.user_control_forms
             return null;
         }
 
-        // Extract integer property from either a JObject or a POCO/dynamic object
         private int? GetObjectIntProp(object obj, params string[] names)
         {
             if (obj == null) return null;

@@ -2,9 +2,12 @@
 using lib_track_kiosk.loading_forms;
 using lib_track_kiosk.models;
 using lib_track_kiosk.panel_forms;
+using MySql.Data.MySqlClient;
 using System;
+using System.Net;
 using System.Net.Http;
 using System.Net.WebSockets;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -73,22 +76,15 @@ namespace lib_track_kiosk.user_control_forms
 
             if (!connected)
             {
-                // prevent further websocket use
-                _ws?.Dispose();
-                _ws = null;
-                _cts?.Dispose();
-                _cts = null;
+                // cleanup websocket and cts
+                TryDisposeWebsocket();
 
                 // show message (optional)
                 MessageBox.Show("Unable to connect to server. Please check your network or try again later.",
                     "Connection Failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
                 // go back to welcome screen
-                if (this.ParentForm is MainForm mainForm)
-                {
-                    var welcome = new UC_Welcome();
-                    mainForm.addUserControl(welcome);
-                }
+                ReturnToWelcome();
             }
         }
 
@@ -105,7 +101,7 @@ namespace lib_track_kiosk.user_control_forms
                 if (_ws.State == WebSocketState.Open)
                 {
                     LogMessage("Connected to WebSocket server.\r\n");
-                    loadingForm.Close();
+                    TryCloseLoading(loadingForm);
 
                     _ = ReceiveMessages();
                     return true;
@@ -119,7 +115,7 @@ namespace lib_track_kiosk.user_control_forms
             {
                 LogMessage("WebSocket connection failed: " + ex.Message + "\r\n");
 
-                try { loadingForm.Close(); } catch { }
+                try { TryCloseLoading(loadingForm); } catch { }
                 return false;
             }
         }
@@ -168,7 +164,8 @@ namespace lib_track_kiosk.user_control_forms
 
                         if (user != null)
                         {
-                            NavigateToFingerprint(user);
+                            // After successful login, check fingerprint registration status
+                            await ProcessPostLoginAsync(user);
                         }
                     }
                     else
@@ -178,11 +175,13 @@ namespace lib_track_kiosk.user_control_forms
                 }
                 else
                 {
+                    // Show login failure message
                     try
                     {
                         using var doc = JsonDocument.Parse(respJson);
-                        var msg = doc.RootElement.GetProperty("message").GetString();
-                        MessageBox.Show(msg);
+                        var root = doc.RootElement;
+                        var msg = root.TryGetProperty("message", out var m) ? m.GetString() : null;
+                        MessageBox.Show(msg ?? "Login failed");
                     }
                     catch
                     {
@@ -196,15 +195,148 @@ namespace lib_track_kiosk.user_control_forms
             }
             finally
             {
-                loading.Close();
+                TryCloseLoading(loading);
             }
+        }
+
+        // Check if user has fingerprints registered in database
+        private async Task<bool> HasFingerprintsRegistered(int userId)
+        {
+            return await Task.Run(() =>
+            {
+                Database dbConfig = new Database();
+                string connStr = $"Server={dbConfig.Host};Database={dbConfig.Name};User Id={dbConfig.User};Password={dbConfig.Password};Port={dbConfig.Port};AllowPublicKeyRetrieval=True;SslMode=None;ConnectionTimeout=15;";
+
+                try
+                {
+                    using (MySqlConnection conn = new MySqlConnection(connStr))
+                    {
+                        conn.Open();
+                        string query = "SELECT COUNT(*) FROM fingerprints WHERE user_id = @userId";
+                        using (MySqlCommand cmd = new MySqlCommand(query, conn))
+                        {
+                            cmd.Parameters.AddWithValue("@userId", userId);
+                            var result = cmd.ExecuteScalar();
+                            int count = result != null ? Convert.ToInt32(result) : 0;
+                            return count > 0;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogMessage($"Error checking fingerprints in database: {ex.Message}\r\n");
+                    // On database error, assume no fingerprints to allow registration attempt
+                    return false;
+                }
+            });
+        }
+
+        // After a successful login, decide whether to navigate to fingerprint enrollment or show already registered message
+        private async Task ProcessPostLoginAsync(LoginResponse user)
+        {
+            // Try to get an integer user id using common property names via reflection
+            int? userId = TryExtractUserId(user);
+
+            // If we couldn't determine a user id, show error and return to welcome
+            if (!userId.HasValue)
+            {
+                if (this.InvokeRequired)
+                {
+                    this.Invoke(new Action(() =>
+                    {
+                        MessageBox.Show("Unable to determine user ID. Please contact support.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        ReturnToWelcome();
+                    }));
+                }
+                else
+                {
+                    MessageBox.Show("Unable to determine user ID. Please contact support.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ReturnToWelcome();
+                }
+                return;
+            }
+
+            try
+            {
+                // Check database directly for existing fingerprints
+                bool hasFingerprints = await HasFingerprintsRegistered(userId.Value);
+
+                if (hasFingerprints)
+                {
+                    // Fingerprint already registered -> inform user and return to welcome screen
+                    if (this.InvokeRequired)
+                    {
+                        this.Invoke(new Action(() =>
+                        {
+                            MessageBox.Show("There is already a fingerprint registered for this account.", "Fingerprint Already Registered", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            ReturnToWelcome();
+                        }));
+                    }
+                    else
+                    {
+                        MessageBox.Show("There is already a fingerprint registered for this account.", "Fingerprint Already Registered", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        ReturnToWelcome();
+                    }
+                }
+                else
+                {
+                    // No fingerprint found -> navigate to registration
+                    NavigateToFingerprintOnUI(user);
+                }
+            }
+            catch (Exception ex)
+            {
+                // On error, log and inform the user
+                LogMessage("Fingerprint check failed: " + ex.Message + "\r\n");
+                if (this.InvokeRequired)
+                {
+                    this.Invoke(new Action(() =>
+                    {
+                        MessageBox.Show("Could not confirm fingerprint status due to an error. Please try again later.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        ReturnToWelcome();
+                    }));
+                }
+                else
+                {
+                    MessageBox.Show("Could not confirm fingerprint status due to an error. Please try again later.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    ReturnToWelcome();
+                }
+            }
+        }
+
+        // Try to extract a numeric user id from the LoginResponse via reflection:
+        // common property names: Id, UserId, id, user_id, StudentId, student_id
+        private int? TryExtractUserId(LoginResponse user)
+        {
+            if (user == null) return null;
+
+            try
+            {
+                var t = user.GetType();
+                string[] names = new[] { "Id", "UserId", "id", "user_id", "StudentId", "student_id" };
+                foreach (var n in names)
+                {
+                    var pi = t.GetProperty(n, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                    if (pi != null)
+                    {
+                        var val = pi.GetValue(user);
+                        if (val == null) continue;
+                        if (val is int i) return i;
+                        if (val is long l) return (int)l;
+                        if (int.TryParse(val.ToString(), out var iv)) return iv;
+                    }
+                }
+            }
+            catch { /* ignore */ }
+
+            return null;
         }
 
         private async Task ReceiveMessages()
         {
             var buffer = new byte[4096];
 
-            while (_ws.State == WebSocketState.Open)
+            while (_ws != null && _ws.State == WebSocketState.Open)
             {
                 try
                 {
@@ -217,6 +349,7 @@ namespace lib_track_kiosk.user_control_forms
                     else
                     {
                         var jsonString = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        // handle websocket messages that may indicate user logged in
                         HandleMessage(jsonString);
                     }
                 }
@@ -245,7 +378,18 @@ namespace lib_track_kiosk.user_control_forms
 
                     if (user != null)
                     {
-                        NavigateToFingerprint(user);
+                        // run async fingerprint check and navigation without blocking WS loop
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await ProcessPostLoginAsync(user).ConfigureAwait(false);
+                            }
+                            catch (Exception ex)
+                            {
+                                LogMessage("Error during websocket post-login processing: " + ex.Message + "\r\n");
+                            }
+                        });
                         return;
                     }
                 }
@@ -259,8 +403,28 @@ namespace lib_track_kiosk.user_control_forms
             }
         }
 
+        // Navigate to fingerprint registration on UI thread
+        private void NavigateToFingerprintOnUI(LoginResponse user)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() => NavigateToFingerprintOnUI(user)));
+                return;
+            }
+
+            ShowUserInfo(user);
+
+            if (this.ParentForm is MainForm mainForm)
+            {
+                // pass user details to UC_RegisterFingerprint
+                var fingerprintScreen = new UC_RegisterFingerprint(user);
+                mainForm.addUserControl(fingerprintScreen);
+            }
+        }
+
         private void NavigateToFingerprint(LoginResponse user)
         {
+            // kept for backward compatibility, routes immediately to registration (not used in new flow)
             if (this.InvokeRequired)
             {
                 this.Invoke(new Action(() => NavigateToFingerprint(user)));
@@ -312,11 +476,66 @@ namespace lib_track_kiosk.user_control_forms
             }
             catch { /* ignore errors */ }
 
+            ReturnToWelcome();
+        }
+
+        // Helper: Dispose websocket and cancellation token safely
+        private void TryDisposeWebsocket()
+        {
+            try
+            {
+                try { _ws?.Dispose(); } catch { }
+                _ws = null;
+            }
+            catch { }
+            try
+            {
+                try { _cts?.Cancel(); } catch { }
+                try { _cts?.Dispose(); } catch { }
+                _cts = null;
+            }
+            catch { }
+        }
+
+        // Replace direct this.Close() semantics with returning to UC_Welcome
+        private void ReturnToWelcome()
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(ReturnToWelcome));
+                return;
+            }
+
+            // cleanup resources
+            TryDisposeWebsocket();
+            try { _osk?.Dispose(); } catch { }
+            _osk = null;
+
             if (this.ParentForm is MainForm mainForm)
             {
                 var welcome = new UC_Welcome();
                 mainForm.addUserControl(welcome);
             }
+        }
+
+        // Safely close a Loading form from any thread
+        private void TryCloseLoading(Form loading)
+        {
+            if (loading == null) return;
+            try
+            {
+                if (loading.IsDisposed) return;
+                if (loading.InvokeRequired)
+                    loading.Invoke(new Action(() =>
+                    {
+                        try { if (!loading.IsDisposed) loading.Close(); } catch { }
+                    }));
+                else
+                {
+                    try { if (!loading.IsDisposed) loading.Close(); } catch { }
+                }
+            }
+            catch { /* swallow */ }
         }
 
         // ------------------ On-screen keyboard related handlers ------------------
@@ -371,6 +590,7 @@ namespace lib_track_kiosk.user_control_forms
         protected override void OnHandleDestroyed(EventArgs e)
         {
             base.OnHandleDestroyed(e);
+            TryDisposeWebsocket();
             try { _osk?.Dispose(); } catch { }
             _osk = null;
         }

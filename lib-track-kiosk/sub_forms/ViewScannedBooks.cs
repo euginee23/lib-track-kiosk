@@ -196,5 +196,10 @@ namespace lib_track_kiosk.sub_forms
                 MessageBox.Show($"⚠️ Error opening view: {ex.Message}");
             }
         }
+
+        private void closeView_btn_Click(object sender, EventArgs e)
+        {
+            this.Close();
+        }
     }
 }

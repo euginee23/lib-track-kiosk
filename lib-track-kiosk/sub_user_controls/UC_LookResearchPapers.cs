@@ -6,27 +6,29 @@ using System.Net.Http;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Models = lib_track_kiosk.models;    // alias to avoid ambiguity with helper types
+using Models = lib_track_kiosk.models;
 using lib_track_kiosk.configs;
-using lib_track_kiosk.helpers;       // for GetAllResearchPapers / AllResearchPaperInfo
-using lib_track_kiosk.loading_forms; // for Loading
+using lib_track_kiosk.helpers;
+using lib_track_kiosk.loading_forms;
 using Newtonsoft.Json.Linq;
 using System.Runtime.InteropServices;
-using lib_track_kiosk.caching;       // SharedResearchPaperCache
+using lib_track_kiosk.caching;
+using System.Threading;
 
 namespace lib_track_kiosk.sub_user_controls
 {
     public partial class UC_LookResearchPapers : UserControl
     {
+        // PAGINATION SETTINGS
+        private const int PAPERS_PER_PAGE = 20;
+        private int _currentPage = 1;
+        private int _totalPages = 1;
+
         // Full dataset from backend (never mutated by filtering)
         private List<Models.ResearchPaper> _allResearchPapers = new List<Models.ResearchPaper>();
 
-        // Current (possibly filtered) view (subset for pagination)
-        private List<Models.ResearchPaper> _researchPapers = new List<Models.ResearchPaper>();
-
-        // Pagination / "load more" config
-        private readonly int _pageSize = 50;
-        private int _displayCount = 0;
+        // Current (possibly filtered) view
+        private List<Models.ResearchPaper> _filteredResearchPapers = new List<Models.ResearchPaper>();
 
         private readonly List<Color> _accentColors = new List<Color>
         {
@@ -50,7 +52,7 @@ namespace lib_track_kiosk.sub_user_controls
         // track currently selected card so we can toggle selection visuals
         private Panel _selectedCard;
 
-        // Debounce timer for search box — explicitly use System.Windows.Forms.Timer to avoid ambiguity
+        // Debounce timer for search box
         private readonly System.Windows.Forms.Timer _searchDebounceTimer;
 
         // Departments for the combo box
@@ -58,6 +60,12 @@ namespace lib_track_kiosk.sub_user_controls
 
         // Currently selected department filter (null or 0 = All)
         private int? _selectedDepartmentId = null;
+
+        // Cancellation token for async operations
+        private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+
+        // Track if control is active
+        private bool _isActive = false;
 
         // DeptItem helper (for ComboBox display + value)
         private class DeptItem
@@ -71,7 +79,7 @@ namespace lib_track_kiosk.sub_user_controls
         {
             InitializeComponent();
 
-            // instantiate keyboard helper (lazy alternative is possible)
+            // instantiate keyboard helper
             _osk = new OnScreenKeyboard();
 
             // Wire keyboard open/close to the search textbox if it exists
@@ -81,9 +89,8 @@ namespace lib_track_kiosk.sub_user_controls
                 search_txtBox.Enter += SearchTxtBox_GotFocus;
                 search_txtBox.Click += SearchTxtBox_Click;
                 search_txtBox.LostFocus += SearchTxtBox_LostFocus;
-
-                // Set up text-changed handler for searching
                 search_txtBox.TextChanged += SearchTxtBox_TextChanged;
+                search_txtBox.KeyDown += SearchTxtBox_KeyDown;
             }
 
             // wire department combo box change (if present)
@@ -92,29 +99,131 @@ namespace lib_track_kiosk.sub_user_controls
                 departments_cmbx.SelectedIndexChanged += Departments_cmbx_SelectedIndexChanged;
             }
 
-            // search debounce timer (300ms) — instantiate explicitly as Forms Timer
+            // search debounce timer (300ms)
             _searchDebounceTimer = new System.Windows.Forms.Timer { Interval = 300 };
             _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
 
-            // clean up on disposal (avoid designer Dispose conflict)
+            // Wire up visibility changed events for cleanup
+            this.VisibleChanged += UC_LookResearchPapers_VisibleChanged;
             this.Disposed += UC_LookResearchPapers_Disposed;
 
-            // reduce flicker by enabling double buffering on the flow panel (non-public property)
+            // reduce flicker by enabling double buffering
             TryEnableDoubleBuffer(research_FlowLayoutPanel);
 
-            // start async load from backend (shows Loading form while fetching)
-            _ = LoadDepartmentsAsync();       // populate department filter first
-            _ = LoadResearchPapersAsync();    // then load papers
+            // start async load
+            _ = LoadDepartmentsAsync();
+            _ = LoadResearchPapersAsync();
 
             abstract_rtbx.Text = "📄 Please select a research paper to view its abstract.";
 
-            // 🖱️ Scroll button handlers
+            // Scroll button handlers
             scrollUp_btn.Click += ScrollUp_btn_Click;
             scrollDown_btn.Click += ScrollDown_btn_Click;
         }
 
+        /// <summary>
+        /// Called when control visibility changes. Cleanup when hidden.
+        /// </summary>
+        private void UC_LookResearchPapers_VisibleChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                if (!this.Visible && _isActive)
+                {
+                    Console.WriteLine("🧹 UC_LookResearchPapers hidden - cleaning up memory...");
+                    CleanupMemory();
+                    _isActive = false;
+                }
+                else if (this.Visible && !_isActive)
+                {
+                    _isActive = true;
+                    Console.WriteLine("✓ UC_LookResearchPapers shown");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ UC_LookResearchPapers_VisibleChanged error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Public method to cleanup memory when leaving this control.
+        /// Call this from parent form before switching to another control.
+        /// </summary>
+        public void CleanupMemory()
+        {
+            try
+            {
+                Console.WriteLine("🧹 Starting memory cleanup for UC_LookResearchPapers...");
+
+                // Cancel any pending operations
+                try { _cts?.Cancel(); } catch { }
+
+                // Close keyboard
+                TryCloseKeyboard();
+
+                // Clear all paper cards
+                ClearResearchFlowPanel();
+
+                // Clear abstract
+                if (abstract_rtbx != null)
+                {
+                    abstract_rtbx.Clear();
+                    abstract_rtbx.Text = "📄 Please select a research paper to view its abstract.";
+                }
+
+                // Clear selection
+                _selectedCard = null;
+
+                // Clear filtered list (but keep _allResearchPapers for quick reload)
+                _filteredResearchPapers?.Clear();
+
+                // Force aggressive garbage collection
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+
+                long memoryAfter = GC.GetTotalMemory(false) / (1024 * 1024);
+                Console.WriteLine($"✓ Memory cleanup completed. Current memory: {memoryAfter}MB");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ CleanupMemory error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Public method to reload data when returning to this control.
+        /// </summary>
+        public void ReloadData()
+        {
+            try
+            {
+                Console.WriteLine("🔄 Reloading UC_LookResearchPapers data...");
+
+                // Reset to first page
+                _currentPage = 1;
+
+                // Restore filtered papers from cache
+                _filteredResearchPapers = _allResearchPapers.Select(p => p).ToList();
+
+                // Re-display
+                DisplayResearchPapers();
+
+                Console.WriteLine("✓ UC_LookResearchPapers data reloaded");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ ReloadData error: {ex.Message}");
+            }
+        }
+
         private void UC_LookResearchPapers_Disposed(object sender, EventArgs e)
         {
+            Console.WriteLine("🗑️ UC_LookResearchPapers disposing...");
+
+            try { this.VisibleChanged -= UC_LookResearchPapers_VisibleChanged; } catch { }
+
             try
             {
                 if (search_txtBox != null)
@@ -124,30 +233,50 @@ namespace lib_track_kiosk.sub_user_controls
                     search_txtBox.Click -= SearchTxtBox_Click;
                     search_txtBox.LostFocus -= SearchTxtBox_LostFocus;
                     search_txtBox.TextChanged -= SearchTxtBox_TextChanged;
+                    search_txtBox.KeyDown -= SearchTxtBox_KeyDown;
                 }
             }
-            catch { /* ignore */ }
+            catch { }
 
             try
             {
                 if (departments_cmbx != null)
                     departments_cmbx.SelectedIndexChanged -= Departments_cmbx_SelectedIndexChanged;
             }
-            catch { /* ignore */ }
+            catch { }
+
+            try { _osk?.Dispose(); } catch { }
 
             try
             {
-                _osk?.Dispose();
-            }
-            catch { /* ignore */ }
-
-            try
-            {
-                // Stop and Dispose the forms timer safely
                 _searchDebounceTimer?.Stop();
                 _searchDebounceTimer?.Dispose();
             }
-            catch { /* ignore */ }
+            catch { }
+
+            try { _cts.Cancel(); } catch { }
+            try { _cts.Dispose(); } catch { }
+
+            try { ClearResearchFlowPanel(); } catch { }
+
+            try
+            {
+                _allResearchPapers?.Clear();
+                _filteredResearchPapers?.Clear();
+                _departments?.Clear();
+            }
+            catch { }
+
+            // Force final cleanup
+            try
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            }
+            catch { }
+
+            Console.WriteLine("✓ UC_LookResearchPapers disposed");
         }
 
         private void SearchTxtBox_Click(object sender, EventArgs e) => TryOpenKeyboard();
@@ -155,31 +284,46 @@ namespace lib_track_kiosk.sub_user_controls
 
         private async void SearchTxtBox_LostFocus(object sender, EventArgs e)
         {
-            // Debounce so quick focus moves within this control don't close the keyboard immediately
             await Task.Delay(150);
+            try { if (!this.ContainsFocus) TryCloseKeyboard(); } catch { }
+        }
+
+        private void SearchTxtBox_KeyDown(object sender, KeyEventArgs e)
+        {
             try
             {
-                // If focus has left this UserControl entirely, close the keyboard
-                if (!this.ContainsFocus)
-                    TryCloseKeyboard();
+                if (e == null) return;
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                    _searchDebounceTimer?.Stop();
+                    ApplySearchFilter();
+                    try { search_txtBox.Focus(); } catch { }
+                }
+                else if (e.KeyCode == Keys.Escape)
+                {
+                    _searchDebounceTimer?.Stop();
+                    if (search_txtBox != null && !string.IsNullOrEmpty(search_txtBox.Text))
+                    {
+                        search_txtBox.Text = string.Empty;
+                        ApplySearchFilter();
+                    }
+                }
             }
-            catch { /* best-effort */ }
+            catch { }
         }
 
         private void TryOpenKeyboard()
         {
-            try { _osk?.Open(); } catch { /* ignore */ }
+            try { _osk?.Open(); } catch { }
         }
 
         private void TryCloseKeyboard()
         {
-            try { _osk?.Close(); } catch { /* ignore */ }
+            try { _osk?.Close(); } catch { }
         }
 
-        /// <summary>
-        /// Loads departments from API and populates departments_cmbx (if present).
-        /// Endpoint: {API_Backend.BaseUrl}/api/settings/departments
-        /// </summary>
         private async Task LoadDepartmentsAsync()
         {
             if (departments_cmbx == null) return;
@@ -199,7 +343,6 @@ namespace lib_track_kiosk.sub_user_controls
                 if (data == null) return;
 
                 _departments.Clear();
-                // Add "All Departments" entry (Id = 0)
                 _departments.Add(new DeptItem { Id = 0, Name = "All Departments" });
 
                 foreach (var t in data)
@@ -211,10 +354,9 @@ namespace lib_track_kiosk.sub_user_controls
                         string name = obj["department_name"]?.ToString() ?? $"Dept {id}";
                         _departments.Add(new DeptItem { Id = id, Name = name });
                     }
-                    catch { /* ignore item */ }
+                    catch { }
                 }
 
-                // Populate combo box on UI thread
                 if (departments_cmbx.InvokeRequired)
                 {
                     departments_cmbx.Invoke((Action)(() =>
@@ -237,10 +379,6 @@ namespace lib_track_kiosk.sub_user_controls
             }
         }
 
-        /// <summary>
-        /// Called when the department combobox selection changes.
-        /// Sets the selected department id and reapplies the current search filter.
-        /// </summary>
         private void Departments_cmbx_SelectedIndexChanged(object sender, EventArgs e)
         {
             try
@@ -254,25 +392,15 @@ namespace lib_track_kiosk.sub_user_controls
                     _selectedDepartmentId = null;
                 }
 
-                // Reapply search with current query and new department filter
-                string query = search_txtBox?.Text ?? "";
-                ApplySearchFilter(query);
+                ApplySearchFilter();
             }
-            catch { /* ignore */ }
+            catch { }
         }
 
-        /// <summary>
-        /// Load research papers from the backend using GetAllResearchPapers, but go through SharedResearchPaperCache
-        /// to avoid repeated fetches across multiple UC instances.
-        /// Shows the Loading form while fetching and closes it when finished.
-        /// Maps helper DTO (AllResearchPaperInfo) into the UI model (Models.ResearchPaper).
-        /// Uses pagination to avoid creating all UI controls at once.
-        /// </summary>
         private async Task LoadResearchPapersAsync()
         {
             Loading loadingForm = null;
 
-            // Show loading form (non-blocking)
             try
             {
                 loadingForm = new Loading();
@@ -299,15 +427,11 @@ namespace lib_track_kiosk.sub_user_controls
 
             try
             {
-                // Use the SharedResearchPaperCache to fetch-or-reuse cached AllResearchPaperInfo objects.
-                // Important: GetAllResearchPapers.GetAllAsync has an optional parameter, so the method group
-                // doesn't match Func<Task<List<AllResearchPaperInfo>>>. Provide a zero-arg lambda instead.
-                var fetched = await SharedResearchPaperCache.GetOrFetchAsync<AllResearchPaperInfo>(() => GetAllResearchPapers.GetAllAsync()).ConfigureAwait(false);
+                var fetched = await SharedResearchPaperCache.GetOrFetchAsync<AllResearchPaperInfo>(
+                    () => GetAllResearchPapers.GetAllAsync()).ConfigureAwait(false);
 
-                // Map AllResearchPaperInfo -> Models.ResearchPaper (full lists stored, but we will only render a page)
                 if (fetched != null && fetched.Count > 0)
                 {
-                    // Map on UI thread context to keep things simple when interacting with UI afterwards.
                     var mapped = fetched.Select(r => new Models.ResearchPaper
                     {
                         Id = r.ResearchPaperId,
@@ -320,33 +444,40 @@ namespace lib_track_kiosk.sub_user_controls
                         ShelfLocation = string.IsNullOrWhiteSpace(r.ShelfLocation) ? "N/A" : r.ShelfLocation
                     }).ToList();
 
-                    // store canonical mapped list for UI use
-                    _allResearchPapers = mapped;
-
-                    // pagination initial display count
-                    _displayCount = Math.Min(_pageSize, _allResearchPapers.Count);
-                    _researchPapers = _allResearchPapers.Take(_displayCount).ToList();
+                    if (this.IsHandleCreated && this.InvokeRequired)
+                    {
+                        this.Invoke((Action)(() =>
+                        {
+                            _allResearchPapers = mapped;
+                            _filteredResearchPapers = _allResearchPapers.Select(p => p).ToList();
+                            _currentPage = 1;
+                            DisplayResearchPapers();
+                        }));
+                    }
+                    else
+                    {
+                        _allResearchPapers = mapped;
+                        _filteredResearchPapers = _allResearchPapers.Select(p => p).ToList();
+                        _currentPage = 1;
+                        DisplayResearchPapers();
+                    }
                 }
                 else
                 {
-                    // no results — clear UI list
                     _allResearchPapers = new List<Models.ResearchPaper>();
-                    _researchPapers = new List<Models.ResearchPaper>();
-                    _displayCount = 0;
+                    _filteredResearchPapers = new List<Models.ResearchPaper>();
+                    DisplayResearchPapers();
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️ Error loading research papers: {ex.Message}");
-
-                // keep state consistent on error
                 _allResearchPapers = new List<Models.ResearchPaper>();
-                _researchPapers = new List<Models.ResearchPaper>();
-                _displayCount = 0;
+                _filteredResearchPapers = new List<Models.ResearchPaper>();
+                DisplayResearchPapers();
             }
             finally
             {
-                // Close and dispose the loading form on UI thread
                 if (loadingForm != null)
                 {
                     try
@@ -362,26 +493,11 @@ namespace lib_track_kiosk.sub_user_controls
                             }
                         }
                     }
-                    catch { /* ignore */ }
+                    catch { }
                 }
-            }
-
-            // Update UI (first page)
-            // Marshal to UI thread if necessary
-            if (this.InvokeRequired)
-            {
-                this.Invoke((Action)DisplayResearchPapers);
-            }
-            else
-            {
-                DisplayResearchPapers();
             }
         }
 
-        /// <summary>
-        /// Public helper to force refresh research papers (clears shared cache optionally).
-        /// Call RefreshResearchPapersAsync(true) to force a re-fetch from backend.
-        /// </summary>
         public async Task RefreshResearchPapersAsync(bool force = false)
         {
             if (force)
@@ -394,57 +510,180 @@ namespace lib_track_kiosk.sub_user_controls
 
         private void DisplayResearchPapers()
         {
-            // Dispose any existing controls to free native/window/GDI resources immediately
-            try
-            {
-                if (research_FlowLayoutPanel.Controls.Count > 0)
-                {
-                    var toDispose = research_FlowLayoutPanel.Controls.Cast<Control>().ToList();
-                    research_FlowLayoutPanel.Controls.Clear();
-                    foreach (var c in toDispose)
-                    {
-                        try
-                        {
-                            c.Dispose();
-                        }
-                        catch { /* ignore */ }
-                    }
-                }
-            }
-            catch { /* best-effort */ }
-
+            ClearResearchFlowPanel();
             research_FlowLayoutPanel.AutoScroll = true;
             research_FlowLayoutPanel.WrapContents = true;
             research_FlowLayoutPanel.FlowDirection = FlowDirection.LeftToRight;
 
-            // If there are no items to display, show an informative message in the flow panel
-            if (_researchPapers == null || _researchPapers.Count == 0)
-            {
-                // Clear any selection / abstract
-                _selectedCard = null;
-                if (abstract_rtbx != null)
-                    abstract_rtbx.Text = "📄 No research papers found. Try a different search or select another department.";
+            // Calculate pagination
+            _totalPages = (_filteredResearchPapers.Count + PAPERS_PER_PAGE - 1) / PAPERS_PER_PAGE;
+            if (_totalPages == 0) _totalPages = 1;
+            if (_currentPage > _totalPages) _currentPage = _totalPages;
+            if (_currentPage < 1) _currentPage = 1;
 
-                AddNoResultsMessageToFlow();
-                return;
+            research_FlowLayoutPanel.SuspendLayout();
+            try
+            {
+                // Add pagination info at top
+                AddPaginationInfo();
+
+                if (_filteredResearchPapers == null || _filteredResearchPapers.Count == 0)
+                {
+                    _selectedCard = null;
+                    if (abstract_rtbx != null)
+                        abstract_rtbx.Text = "📄 No research papers found. Try a different search or select another department.";
+
+                    AddNoResultsMessageToFlow();
+                }
+                else
+                {
+                    // Get papers for current page
+                    var papersToDisplay = _filteredResearchPapers
+                        .Skip((_currentPage - 1) * PAPERS_PER_PAGE)
+                        .Take(PAPERS_PER_PAGE)
+                        .ToList();
+
+                    foreach (var paper in papersToDisplay)
+                        AddResearchCard(paper);
+                }
+
+                // Add pagination controls at bottom
+                AddPaginationControls();
             }
-
-            foreach (var paper in _researchPapers)
-                AddResearchCard(paper);
-
-            // If there are more items available, show a "Load more" button at the end
-            if (_allResearchPapers != null && _displayCount < _allResearchPapers.Count)
+            finally
             {
-                AddLoadMoreButton(_allResearchPapers.Count - _displayCount);
+                research_FlowLayoutPanel.ResumeLayout(false);
+                research_FlowLayoutPanel.PerformLayout();
             }
         }
 
-        // Adds a centered "no results" message into the FlowLayoutPanel
+        private void AddPaginationInfo()
+        {
+            try
+            {
+                var panel = new Panel
+                {
+                    Width = research_FlowLayoutPanel.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 20,
+                    Height = 50,
+                    Margin = new Padding(10, 10, 10, 5),
+                    BackColor = Color.FromArgb(240, 248, 255)
+                };
+
+                var lblInfo = new Label
+                {
+                    AutoSize = false,
+                    Width = panel.Width,
+                    Height = 50,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(0, 102, 204),
+                    Text = $"Page {_currentPage} of {_totalPages} • Showing {Math.Min(_filteredResearchPapers.Count, PAPERS_PER_PAGE)} of {_filteredResearchPapers.Count} papers",
+                    Dock = DockStyle.Fill
+                };
+
+                panel.Controls.Add(lblInfo);
+                research_FlowLayoutPanel.Controls.Add(panel);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ AddPaginationInfo error: {ex.Message}");
+            }
+        }
+
+        private void AddPaginationControls()
+        {
+            try
+            {
+                var panel = new Panel
+                {
+                    Width = research_FlowLayoutPanel.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 20,
+                    Height = 70,
+                    Margin = new Padding(10),
+                    BackColor = Color.Transparent
+                };
+
+                int buttonWidth = 120;
+                int buttonHeight = 50;
+                int spacing = 20;
+                int centerX = panel.Width / 2;
+
+                var btnPrev = new Button
+                {
+                    Width = buttonWidth,
+                    Height = buttonHeight,
+                    Left = centerX - buttonWidth - spacing,
+                    Top = 10,
+                    Text = "◄ Previous",
+                    Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                    BackColor = Color.FromArgb(0, 123, 255),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Enabled = _currentPage > 1,
+                    Cursor = Cursors.Hand
+                };
+                btnPrev.FlatAppearance.BorderSize = 0;
+                btnPrev.Click += (s, e) =>
+                {
+                    if (_currentPage > 1)
+                    {
+                        _currentPage--;
+                        DisplayResearchPapers();
+                        research_FlowLayoutPanel.ScrollControlIntoView(research_FlowLayoutPanel.Controls[0]);
+                    }
+                };
+
+                var btnNext = new Button
+                {
+                    Width = buttonWidth,
+                    Height = buttonHeight,
+                    Left = centerX + spacing,
+                    Top = 10,
+                    Text = "Next ►",
+                    Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                    BackColor = Color.FromArgb(0, 123, 255),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Enabled = _currentPage < _totalPages,
+                    Cursor = Cursors.Hand
+                };
+                btnNext.FlatAppearance.BorderSize = 0;
+                btnNext.Click += (s, e) =>
+                {
+                    if (_currentPage < _totalPages)
+                    {
+                        _currentPage++;
+                        DisplayResearchPapers();
+                        research_FlowLayoutPanel.ScrollControlIntoView(research_FlowLayoutPanel.Controls[0]);
+                    }
+                };
+
+                if (!btnPrev.Enabled)
+                {
+                    btnPrev.BackColor = Color.Gray;
+                    btnPrev.Cursor = Cursors.Default;
+                }
+
+                if (!btnNext.Enabled)
+                {
+                    btnNext.BackColor = Color.Gray;
+                    btnNext.Cursor = Cursors.Default;
+                }
+
+                panel.Controls.Add(btnPrev);
+                panel.Controls.Add(btnNext);
+
+                research_FlowLayoutPanel.Controls.Add(panel);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ AddPaginationControls error: {ex.Message}");
+            }
+        }
+
         private void AddNoResultsMessageToFlow()
         {
             try
             {
-                // Create a panel to host the message so margins/padding look nice
                 var msgPanel = new Panel
                 {
                     Width = Math.Max(200, research_FlowLayoutPanel.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 40),
@@ -464,7 +703,6 @@ namespace lib_track_kiosk.sub_user_controls
 
                 msgPanel.Controls.Add(lbl);
 
-                // If invoked from a non-UI thread, marshal to UI thread
                 if (research_FlowLayoutPanel.InvokeRequired)
                 {
                     research_FlowLayoutPanel.Invoke((Action)(() => research_FlowLayoutPanel.Controls.Add(msgPanel)));
@@ -476,50 +714,10 @@ namespace lib_track_kiosk.sub_user_controls
             }
             catch (Exception ex)
             {
-                // Swallow errors for UI fallback; still leave flow empty
                 Console.WriteLine($"⚠️ Failed to add 'no results' message: {ex.Message}");
             }
         }
 
-        // Adds a small Load More button into the flow layout so we don't create every card at once
-        private void AddLoadMoreButton(int remainingCount)
-        {
-            try
-            {
-                var btn = new Button
-                {
-                    Text = $"Load more ({remainingCount} more)",
-                    Width = 200,
-                    Height = 36,
-                    Margin = new Padding(12),
-                    BackColor = Color.WhiteSmoke,
-                    FlatStyle = FlatStyle.Flat,
-                    Cursor = Cursors.Hand
-                };
-
-                btn.Click += (s, e) =>
-                {
-                    // increase display count and refresh
-                    int next = Math.Min(_displayCount + _pageSize, _allResearchPapers.Count);
-                    _displayCount = next;
-                    _researchPapers = _allResearchPapers.Take(_displayCount).ToList();
-
-                    // refresh UI
-                    DisplayResearchPapers();
-
-                    // ensure focus stays reasonable
-                    try { btn.Dispose(); } catch { }
-                };
-
-                research_FlowLayoutPanel.Controls.Add(btn);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️ Failed to add Load more button: {ex.Message}");
-            }
-        }
-
-        // Use Models.ResearchPaper in method signatures to avoid ambiguity
         private void AddResearchCard(Models.ResearchPaper paper)
         {
             int cardWidth = 410;
@@ -584,7 +782,6 @@ namespace lib_track_kiosk.sub_user_controls
                 AutoEllipsis = true
             };
 
-            // Department label (displayed under authors)
             Label department = new Label
             {
                 AutoSize = false,
@@ -617,7 +814,6 @@ namespace lib_track_kiosk.sub_user_controls
                 Text = paper.Year > 0 ? paper.Year.ToString() : "N/A"
             };
 
-            // Create a rounded region for the year label and free the native HRGN handle.
             try
             {
                 IntPtr hrgn = NativeMethods.CreateRoundRectRgn(0, 0, Math.Max(1, year.Width), Math.Max(1, year.Height), 8, 8);
@@ -627,20 +823,15 @@ namespace lib_track_kiosk.sub_user_controls
                     {
                         year.Region = System.Drawing.Region.FromHrgn(hrgn);
                     }
-                    catch
-                    {
-                        // ignore region failure; don't block UI creation
-                    }
+                    catch { }
                     finally
                     {
-                        // Free the native HRGN to avoid leaking GDI objects
-                        try { NativeMethods.DeleteObject(hrgn); } catch { /* ignore */ }
+                        try { NativeMethods.DeleteObject(hrgn); } catch { }
                     }
                 }
             }
-            catch { /* best-effort */ }
+            catch { }
 
-            // Selection visual setter (no hover visuals)
             void SetCardSelectedVisual(Panel p, bool selected)
             {
                 if (p == null) return;
@@ -656,31 +847,26 @@ namespace lib_track_kiosk.sub_user_controls
                 }
             }
 
-            // click handler selects this card and shows the abstract
             void Card_Click(object sender, EventArgs e)
             {
-                // deselect all cards first
                 foreach (Control ctrl in research_FlowLayoutPanel.Controls)
                 {
                     if (ctrl is Panel pnl)
                         SetCardSelectedVisual(pnl, false);
                 }
 
-                // select clicked card
                 _selectedCard = card;
                 SetCardSelectedVisual(card, true);
 
                 ShowAbstract(paper);
             }
 
-            // Add controls then wire clicks — forward child clicks to the card click handler
             card.Controls.Add(topBar);
             card.Controls.Add(title);
             card.Controls.Add(authors);
             card.Controls.Add(department);
             card.Controls.Add(year);
 
-            // Attach click handlers to the card and all children so clicks anywhere select it.
             Action<Control> attachClickRecursively = null;
             attachClickRecursively = (ctrl) =>
             {
@@ -716,49 +902,38 @@ namespace lib_track_kiosk.sub_user_controls
             abstract_rtbx.ScrollToCaret();
         }
 
-        // Search textbox changed -> debounce and apply filter
         private void SearchTxtBox_TextChanged(object sender, EventArgs e)
         {
-            // restart debounce timer
             try
             {
                 _searchDebounceTimer.Stop();
                 _searchDebounceTimer.Start();
             }
-            catch { /* ignore */ }
+            catch { }
         }
 
-        // Debounce timer tick -> perform search
         private void SearchDebounceTimer_Tick(object sender, EventArgs e)
         {
             try
             {
                 _searchDebounceTimer.Stop();
-                string query = search_txtBox?.Text ?? "";
-                ApplySearchFilter(query);
+                ApplySearchFilter();
             }
-            catch { /* ignore */ }
+            catch { }
         }
 
-        /// <summary>
-        /// Filters the full dataset (_allResearchPapers) by the query string.
-        /// Searches in Title, Authors and Abstract, DepartmentName and Year.
-        /// Also applies the selected department filter (if any).
-        /// Uses pagination to avoid rendering all controls.
-        /// </summary>
-        private void ApplySearchFilter(string query)
+        private void ApplySearchFilter()
         {
+            string query = search_txtBox?.Text?.Trim() ?? "";
+
             if (string.IsNullOrWhiteSpace(query) && !_selectedDepartmentId.HasValue)
             {
-                // Reset to full list (page 1)
-                _displayCount = Math.Min(_pageSize, _allResearchPapers.Count);
-                _researchPapers = new List<Models.ResearchPaper>(_allResearchPapers.Take(_displayCount));
+                _filteredResearchPapers = _allResearchPapers.Select(p => p).ToList();
             }
             else
             {
-                string q = (query ?? "").Trim();
-                // case-insensitive contains checks and optional department filter
-                var filtered = _allResearchPapers.Where(p =>
+                string q = query;
+                _filteredResearchPapers = _allResearchPapers.Where(p =>
                     (!_selectedDepartmentId.HasValue || (p.DepartmentId.HasValue && p.DepartmentId.Value == _selectedDepartmentId.Value)) &&
                     (
                         string.IsNullOrEmpty(q) ||
@@ -769,40 +944,31 @@ namespace lib_track_kiosk.sub_user_controls
                          p.Year.ToString().IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
                     )
                 ).ToList();
-
-                // apply pagination to filtered results
-                _displayCount = Math.Min(_pageSize, filtered.Count);
-                _researchPapers = filtered.Take(_displayCount).ToList();
             }
 
-            // clear selection and abstract when filtering
+            _currentPage = 1;
             _selectedCard = null;
             abstract_rtbx.Text = "📄 Please select a research paper to view its abstract.";
 
-            // refresh UI
             DisplayResearchPapers();
         }
 
-        // 🖱 Scroll up/down by one card
         private void ScrollUp_btn_Click(object sender, EventArgs e)
         {
-            int scrollAmount = 160; // card height + spacing
-            research_FlowLayoutPanel.AutoScrollPosition = new Point(
-                0,
-                Math.Max(0, research_FlowLayoutPanel.VerticalScroll.Value - scrollAmount)
-            );
+            int scrollAmount = 400;
+            var scroll = research_FlowLayoutPanel.VerticalScroll;
+            int newValue = Math.Max(scroll.Minimum, scroll.Value - scrollAmount);
+            scroll.Value = newValue;
+            research_FlowLayoutPanel.PerformLayout();
         }
 
         private void ScrollDown_btn_Click(object sender, EventArgs e)
         {
-            int scrollAmount = 160;
-            int newValue = research_FlowLayoutPanel.VerticalScroll.Value + scrollAmount;
-            int maxValue = research_FlowLayoutPanel.VerticalScroll.Maximum;
-
-            if (newValue > maxValue)
-                newValue = maxValue;
-
-            research_FlowLayoutPanel.AutoScrollPosition = new Point(0, newValue);
+            int scrollAmount = 400;
+            var scroll = research_FlowLayoutPanel.VerticalScroll;
+            int newValue = Math.Min(scroll.Maximum, scroll.Value + scrollAmount);
+            scroll.Value = newValue;
+            research_FlowLayoutPanel.PerformLayout();
         }
 
         private void TryEnableDoubleBuffer(Control c)
@@ -810,14 +976,53 @@ namespace lib_track_kiosk.sub_user_controls
             if (c == null) return;
             try
             {
-                // set protected DoubleBuffered property using reflection
                 var prop = typeof(Control).GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic);
                 prop?.SetValue(c, true, null);
             }
-            catch
+            catch { }
+        }
+
+        private void ClearResearchFlowPanel()
+        {
+            if (research_FlowLayoutPanel == null) return;
+            try
             {
-                // best-effort
+                research_FlowLayoutPanel.SuspendLayout();
+
+                var controls = research_FlowLayoutPanel.Controls.Cast<Control>().ToArray();
+                foreach (var c in controls)
+                {
+                    try
+                    {
+                        research_FlowLayoutPanel.Controls.Remove(c);
+                        DisposeControlAndChildren(c);
+                    }
+                    catch { }
+                }
             }
+            catch { }
+            finally
+            {
+                try { research_FlowLayoutPanel.ResumeLayout(false); } catch { }
+            }
+        }
+
+        private void DisposeControlAndChildren(Control ctrl)
+        {
+            if (ctrl == null) return;
+
+            try
+            {
+                var children = ctrl.Controls.Cast<Control>().ToArray();
+                foreach (var ch in children)
+                {
+                    DisposeControlAndChildren(ch);
+                }
+
+                try { ctrl.Controls.Clear(); } catch { }
+                try { ctrl.Dispose(); } catch { }
+            }
+            catch { }
         }
 
         private static class NativeMethods
