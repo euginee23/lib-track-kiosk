@@ -1,5 +1,5 @@
 ﻿using lib_track_kiosk.caching;
-using lib_track_kiosk.helpers;   // BookInfo
+using lib_track_kiosk.helpers;   // BookInfo, GetRatings
 using lib_track_kiosk.models;    // GroupedBook
 using lib_track_kiosk.configs;
 using System;
@@ -21,6 +21,14 @@ namespace lib_track_kiosk.sub_forms
 
         // cancellation token to cancel any background image download when the form is closed
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+
+        // Store rating data
+        private BatchRatingsResponse _ratingsData;
+
+        // Keep reference to rating controls for updates
+        private Panel _ratingBoxPanel;
+        private Label _ratingStarsLabel;
+        private Label _ratingNumericLabel;
 
         public ViewSelectedBook()
         {
@@ -209,10 +217,14 @@ namespace lib_track_kiosk.sub_forms
                 Height = 110,
                 WrapContents = false,
                 BackColor = Color.Transparent,
-                Padding = new Padding(0)
+                Padding = new Padding(0),
+                Tag = "ratingRow" // Tag to identify this row for updates
             };
 
-            bottomRow.Controls.Add(CreateRatingBox(0, 5, 260)); // placeholder
+            // Create rating box with loading placeholder
+            var ratingBox = CreateRatingBox(0, 5, 260);
+            ratingBox.Tag = "ratingBox"; // Tag to find and update later
+            bottomRow.Controls.Add(ratingBox);
             bottomRow.Controls.Add(CreateInfoBox("Total Copies", group.TotalCopies.ToString(), 160));
             bottomRow.Controls.Add(CreateInfoBox("Copies Available", group.AvailableCopies.ToString(), 160));
 
@@ -256,6 +268,196 @@ namespace lib_track_kiosk.sub_forms
             bookInfo_flp.Controls.Add(footerPanel);
 
             bookInfo_flp.ResumeLayout();
+
+            // Load ratings asynchronously
+            _ = LoadRatingsAsync(group.BatchKey);
+        }
+
+        /// <summary>
+        /// Load ratings from API using batch_registration_key
+        /// </summary>
+        private async Task LoadRatingsAsync(string batchKey)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(batchKey))
+                {
+                    Console.WriteLine("⚠️ No batch key available for ratings");
+                    return;
+                }
+
+                // Skip if batch key is a single book identifier
+                if (batchKey.StartsWith("__single__"))
+                {
+                    Console.WriteLine("ℹ️ Single book - skipping batch ratings");
+                    return;
+                }
+
+                Console.WriteLine($"📊 Loading ratings for batch: {batchKey}");
+
+                var ratingsResponse = await GetRatings.GetByBatchKeyAsync(batchKey);
+
+                if (ratingsResponse == null)
+                {
+                    Console.WriteLine("⚠️ Ratings response is null");
+                    return;
+                }
+
+                if (!ratingsResponse.Success)
+                {
+                    Console.WriteLine($"⚠️ Failed to load ratings - Success: {ratingsResponse.Success}");
+                    return;
+                }
+
+                _ratingsData = ratingsResponse;
+
+                Console.WriteLine($"✓ Ratings loaded: Avg={_ratingsData.Avg_Rating}, Count={_ratingsData.Ratings_Count}");
+
+                // Update UI on the UI thread
+                if (this.InvokeRequired)
+                {
+                    this.Invoke(new Action(() => UpdateRatingDisplay()));
+                }
+                else
+                {
+                    UpdateRatingDisplay();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error loading ratings: {ex.Message}");
+                MessageBox.Show($"Error loading ratings:\n{ex.Message}", "Rating Load Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Update the rating display with fetched data
+        /// </summary>
+        private void UpdateRatingDisplay()
+        {
+            try
+            {
+                if (_ratingsData == null)
+                {
+                    Console.WriteLine("⚠️ Cannot update display - ratings data is null");
+                    return;
+                }
+
+                Console.WriteLine($"🔄 Updating rating display with: Avg={_ratingsData.Avg_Rating}, Count={_ratingsData.Ratings_Count}");
+
+                // If we have direct references to the rating controls, update them
+                if (_ratingStarsLabel != null && _ratingNumericLabel != null)
+                {
+                    UpdateRatingControlsDirect();
+                    return;
+                }
+
+                // Otherwise, find the rating row and rebuild the rating box
+                FlowLayoutPanel ratingRow = null;
+                foreach (Control ctrl in bookInfo_flp.Controls)
+                {
+                    if (ctrl is FlowLayoutPanel flp && flp.Tag?.ToString() == "ratingRow")
+                    {
+                        ratingRow = flp;
+                        break;
+                    }
+                }
+
+                if (ratingRow == null)
+                {
+                    Console.WriteLine("⚠️ Could not find rating row to update");
+                    return;
+                }
+
+                // Find and remove old rating box
+                Panel oldRatingBox = null;
+                foreach (Control ctrl in ratingRow.Controls)
+                {
+                    if (ctrl is Panel panel && panel.Tag?.ToString() == "ratingBox")
+                    {
+                        oldRatingBox = panel;
+                        break;
+                    }
+                }
+
+                if (oldRatingBox != null)
+                {
+                    ratingRow.Controls.Remove(oldRatingBox);
+                    oldRatingBox.Dispose();
+                }
+
+                // Calculate rating (round to nearest integer for star display)
+                int displayRating = 0;
+                if (_ratingsData.Avg_Rating.HasValue)
+                {
+                    displayRating = (int)Math.Round(_ratingsData.Avg_Rating.Value);
+                }
+
+                // Create new rating box with actual data
+                var newRatingBox = CreateRatingBox(
+                    displayRating,
+                    5,
+                    260,
+                    _ratingsData.Avg_Rating,
+                    _ratingsData.Ratings_Count
+                );
+                newRatingBox.Tag = "ratingBox";
+
+                // Insert at the beginning of the row
+                ratingRow.Controls.Add(newRatingBox);
+                ratingRow.Controls.SetChildIndex(newRatingBox, 0);
+
+                Console.WriteLine($"✓ Rating display updated successfully: {_ratingsData.Avg_Rating:F1}/5 ({_ratingsData.Ratings_Count} ratings)");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error updating rating display: {ex.Message}");
+                MessageBox.Show($"Error updating rating display:\n{ex.Message}", "Display Update Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Update rating controls directly if we have references to them
+        /// </summary>
+        private void UpdateRatingControlsDirect()
+        {
+            try
+            {
+                if (_ratingsData == null || _ratingStarsLabel == null || _ratingNumericLabel == null)
+                    return;
+
+                int displayRating = 0;
+                if (_ratingsData.Avg_Rating.HasValue)
+                {
+                    displayRating = (int)Math.Round(_ratingsData.Avg_Rating.Value);
+                }
+
+                // Update stars
+                string stars = "";
+                for (int i = 1; i <= 5; i++)
+                {
+                    stars += i <= displayRating ? "★" : "☆";
+                }
+                _ratingStarsLabel.Text = stars;
+
+                // Update numeric label
+                string ratingText;
+                if (_ratingsData.Avg_Rating.HasValue && _ratingsData.Ratings_Count > 0)
+                {
+                    ratingText = $"{_ratingsData.Avg_Rating.Value:F1}/5\n({_ratingsData.Ratings_Count} {(_ratingsData.Ratings_Count == 1 ? "rating" : "ratings")})";
+                }
+                else
+                {
+                    ratingText = "No ratings yet";
+                }
+                _ratingNumericLabel.Text = ratingText;
+
+                Console.WriteLine($"✓ Rating controls updated: {stars} {ratingText}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error in UpdateRatingControlsDirect: {ex.Message}");
+            }
         }
 
         // Asynchronously try to load a cover for the representative book (either from inline model or via shared cache + URL)
@@ -518,7 +720,15 @@ namespace lib_track_kiosk.sub_forms
             return lbl;
         }
 
-        private Control CreateRatingBox(int rating, int maxRating, int width)
+        /// <summary>
+        /// Create rating box with star display
+        /// </summary>
+        /// <param name="rating">Integer rating for star display (0-5)</param>
+        /// <param name="maxRating">Maximum rating (typically 5)</param>
+        /// <param name="width">Width of the panel</param>
+        /// <param name="avgRating">Optional: Actual average rating (with decimals)</param>
+        /// <param name="ratingsCount">Optional: Total number of ratings</param>
+        private Control CreateRatingBox(int rating, int maxRating, int width, double? avgRating = null, int ratingsCount = 0)
         {
             var panel = new Panel
             {
@@ -527,6 +737,8 @@ namespace lib_track_kiosk.sub_forms
                 Margin = new Padding(8, 4, 8, 4),
                 BackColor = Color.White
             };
+
+            _ratingBoxPanel = panel; // Store reference
 
             var lbl = new Label
             {
@@ -539,46 +751,69 @@ namespace lib_track_kiosk.sub_forms
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
-            var starsPanel = new FlowLayoutPanel
+            // Create stars as a single label for easier updating
+            var starsLabel = new Label
             {
-                FlowDirection = FlowDirection.LeftToRight,
-                Width = panel.Width,
+                AutoSize = false,
+                Width = 160,
                 Height = 36,
-                Top = lbl.Bottom + 6
+                Top = lbl.Bottom + 6,
+                Font = new Font("Segoe UI Symbol", 18f),
+                ForeColor = Color.FromArgb(255, 165, 0),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Text = GetStarsText(rating, maxRating)
             };
 
-            for (int i = 1; i <= maxRating; i++)
+            _ratingStarsLabel = starsLabel; // Store reference
+
+            // Display numeric rating (use actual average if provided)
+            string ratingText;
+            if (avgRating.HasValue && ratingsCount > 0)
             {
-                var star = new Label
-                {
-                    Text = i <= rating ? "★" : "☆",
-                    AutoSize = false,
-                    Width = 30,
-                    Height = 30,
-                    Font = new Font("Segoe UI Symbol", 18f),
-                    ForeColor = i <= rating ? Color.FromArgb(255, 165, 0) : Color.FromArgb(200, 200, 200),
-                    TextAlign = ContentAlignment.MiddleCenter
-                };
-                starsPanel.Controls.Add(star);
+                ratingText = $"{avgRating.Value:F1}/{maxRating}\n({ratingsCount} {(ratingsCount == 1 ? "rating" : "ratings")})";
+            }
+            else if (ratingsCount == 0 && !avgRating.HasValue)
+            {
+                ratingText = "Loading...";
+            }
+            else
+            {
+                ratingText = "No ratings yet";
             }
 
             var numeric = new Label
             {
-                Text = $"{rating}/{maxRating}",
+                Text = ratingText,
                 AutoSize = false,
-                Width = 60,
-                Height = 30,
-                Top = lbl.Bottom + 8,
-                Left = starsPanel.Right + 6,
-                Font = new Font("Segoe UI", 10f, FontStyle.Regular),
+                Width = panel.Width - 170,
+                Height = 50,
+                Top = lbl.Bottom + 2,
+                Left = starsLabel.Right + 6,
+                Font = new Font("Segoe UI", 9f, FontStyle.Regular),
                 ForeColor = Color.DimGray,
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
+            _ratingNumericLabel = numeric; // Store reference
+
             panel.Controls.Add(lbl);
-            panel.Controls.Add(starsPanel);
+            panel.Controls.Add(starsLabel);
             panel.Controls.Add(numeric);
+
             return panel;
+        }
+
+        /// <summary>
+        /// Generate stars text based on rating
+        /// </summary>
+        private string GetStarsText(int rating, int maxRating)
+        {
+            string stars = "";
+            for (int i = 1; i <= maxRating; i++)
+            {
+                stars += i <= rating ? "★" : "☆";
+            }
+            return stars;
         }
 
         private Control CreateCopyRow(BookInfo copy)

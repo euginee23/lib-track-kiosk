@@ -30,6 +30,9 @@ namespace lib_track_kiosk.sub_user_controls
         // Current (possibly filtered) view
         private List<Models.ResearchPaper> _filteredResearchPapers = new List<Models.ResearchPaper>();
 
+        // Store ratings data for each paper
+        private Dictionary<int, ResearchRatingsResponse> _ratingsCache = new Dictionary<int, ResearchRatingsResponse>();
+
         private readonly List<Color> _accentColors = new List<Color>
         {
             Color.FromArgb(20, 54, 100),
@@ -178,6 +181,9 @@ namespace lib_track_kiosk.sub_user_controls
                 // Clear filtered list (but keep _allResearchPapers for quick reload)
                 _filteredResearchPapers?.Clear();
 
+                // Clear ratings cache
+                _ratingsCache?.Clear();
+
                 // Force aggressive garbage collection
                 GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
                 GC.WaitForPendingFinalizers();
@@ -264,6 +270,7 @@ namespace lib_track_kiosk.sub_user_controls
                 _allResearchPapers?.Clear();
                 _filteredResearchPapers?.Clear();
                 _departments?.Clear();
+                _ratingsCache?.Clear();
             }
             catch { }
 
@@ -498,11 +505,48 @@ namespace lib_track_kiosk.sub_user_controls
             }
         }
 
+        /// <summary>
+        /// Load ratings for a specific research paper
+        /// </summary>
+        private async Task<ResearchRatingsResponse> LoadRatingForPaperAsync(int paperId)
+        {
+            try
+            {
+                // Check cache first
+                if (_ratingsCache.ContainsKey(paperId))
+                {
+                    return _ratingsCache[paperId];
+                }
+
+                Console.WriteLine($"📊 Loading ratings for research paper: {paperId}");
+
+                var ratingsResponse = await GetRatings.GetByResearchPaperIdAsync(paperId);
+
+                if (ratingsResponse != null && ratingsResponse.Success)
+                {
+                    _ratingsCache[paperId] = ratingsResponse;
+                    Console.WriteLine($"✓ Ratings loaded: Avg={ratingsResponse.Avg_Rating}, Count={ratingsResponse.Ratings_Count}");
+                    return ratingsResponse;
+                }
+                else
+                {
+                    Console.WriteLine($"⚠️ Failed to load ratings for paper {paperId}");
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error loading ratings for paper {paperId}: {ex.Message}");
+                return null;
+            }
+        }
+
         public async Task RefreshResearchPapersAsync(bool force = false)
         {
             if (force)
             {
                 SharedResearchPaperCache.Clear();
+                _ratingsCache.Clear();
             }
 
             await LoadResearchPapersAsync().ConfigureAwait(false);
@@ -721,7 +765,7 @@ namespace lib_track_kiosk.sub_user_controls
         private void AddResearchCard(Models.ResearchPaper paper)
         {
             int cardWidth = 410;
-            int cardHeight = 150;
+            int cardHeight = 180; // Increased height for rating display
             int padding = 16;
             int badgeWidth = 56;
             int badgeHeight = 28;
@@ -760,8 +804,8 @@ namespace lib_track_kiosk.sub_user_controls
                 Left = padding,
                 Top = 12,
                 Width = contentWidth,
-                Height = 64,
-                Font = new Font("Segoe UI Semibold", 11f, FontStyle.Bold),
+                Height = 50,
+                Font = new Font("Segoe UI Semibold", 10f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(30, 30, 30),
                 TextAlign = ContentAlignment.TopLeft,
                 Text = paper.Title,
@@ -772,10 +816,10 @@ namespace lib_track_kiosk.sub_user_controls
             {
                 AutoSize = false,
                 Left = padding,
-                Top = title.Top + title.Height + 6,
+                Top = title.Top + title.Height + 4,
                 Width = contentWidth,
-                Height = 22,
-                Font = new Font("Segoe UI", 9f, FontStyle.Italic),
+                Height = 20,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
                 ForeColor = Color.DimGray,
                 TextAlign = ContentAlignment.MiddleLeft,
                 Text = authorsDisplay,
@@ -786,14 +830,29 @@ namespace lib_track_kiosk.sub_user_controls
             {
                 AutoSize = false,
                 Left = padding,
-                Top = authors.Top + authors.Height + 6,
+                Top = authors.Top + authors.Height + 4,
                 Width = contentWidth,
-                Height = 20,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
+                Height = 18,
+                Font = new Font("Segoe UI", 8f, FontStyle.Regular),
                 ForeColor = Color.Gray,
                 TextAlign = ContentAlignment.MiddleLeft,
                 Text = string.IsNullOrWhiteSpace(paper.DepartmentName) ? "Department: N/A" : $"🏫 {paper.DepartmentName}",
                 AutoEllipsis = true
+            };
+
+            // Rating display (stars + count) - initially shows loading
+            Label ratingLabel = new Label
+            {
+                AutoSize = false,
+                Left = padding,
+                Top = department.Top + department.Height + 6,
+                Width = contentWidth,
+                Height = 30,
+                Font = new Font("Segoe UI Symbol", 10f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(255, 165, 0),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Text = "⭐ Loading...",
+                Tag = "ratingLabel"
             };
 
             int badgeLeft = padding + contentWidth + gap;
@@ -865,6 +924,7 @@ namespace lib_track_kiosk.sub_user_controls
             card.Controls.Add(title);
             card.Controls.Add(authors);
             card.Controls.Add(department);
+            card.Controls.Add(ratingLabel);
             card.Controls.Add(year);
 
             Action<Control> attachClickRecursively = null;
@@ -878,6 +938,71 @@ namespace lib_track_kiosk.sub_user_controls
             attachClickRecursively(card);
 
             research_FlowLayoutPanel.Controls.Add(card);
+
+            // Load ratings asynchronously for this card
+            _ = LoadAndUpdateCardRatingAsync(paper.Id, ratingLabel);
+        }
+
+        /// <summary>
+        /// Load rating for a paper and update the card's rating label
+        /// </summary>
+        private async Task LoadAndUpdateCardRatingAsync(int paperId, Label ratingLabel)
+        {
+            try
+            {
+                var ratingsData = await LoadRatingForPaperAsync(paperId);
+
+                if (ratingsData == null || !ratingsData.Success)
+                {
+                    // No ratings or failed to load
+                    UpdateRatingLabel(ratingLabel, null, 0);
+                    return;
+                }
+
+                // Update the label with rating data
+                UpdateRatingLabel(ratingLabel, ratingsData.Avg_Rating, ratingsData.Ratings_Count);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error loading rating for paper {paperId}: {ex.Message}");
+                UpdateRatingLabel(ratingLabel, null, 0);
+            }
+        }
+
+        /// <summary>
+        /// Update rating label with stars and count
+        /// </summary>
+        private void UpdateRatingLabel(Label label, double? avgRating, int count)
+        {
+            if (label == null || label.IsDisposed) return;
+
+            try
+            {
+                if (label.InvokeRequired)
+                {
+                    label.Invoke(new Action(() => UpdateRatingLabel(label, avgRating, count)));
+                    return;
+                }
+
+                if (avgRating.HasValue && count > 0)
+                {
+                    int roundedRating = (int)Math.Round(avgRating.Value);
+                    string stars = "";
+                    for (int i = 1; i <= 5; i++)
+                    {
+                        stars += i <= roundedRating ? "★" : "☆";
+                    }
+                    label.Text = $"{stars} {avgRating.Value:F1} ({count})";
+                }
+                else
+                {
+                    label.Text = "☆☆☆☆☆ No ratings";
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error updating rating label: {ex.Message}");
+            }
         }
 
         private void ShowAbstract(Models.ResearchPaper paper)
@@ -896,8 +1021,23 @@ namespace lib_track_kiosk.sub_user_controls
             string departmentLine = string.IsNullOrWhiteSpace(paper.DepartmentName) ? "🏫 Department: N/A" : $"🏫 Department: {paper.DepartmentName}";
             string shelfLine = string.IsNullOrWhiteSpace(paper.ShelfLocation) ? "📚 Shelf: N/A" : $"📚 Shelf: {paper.ShelfLocation}";
 
+            // Add rating info
+            string ratingLine = "⭐ Rating: Loading...";
+            if (_ratingsCache.ContainsKey(paper.Id))
+            {
+                var rating = _ratingsCache[paper.Id];
+                if (rating.Avg_Rating.HasValue && rating.Ratings_Count > 0)
+                {
+                    ratingLine = $"⭐ Rating: {rating.Avg_Rating.Value:F1}/5.0 ({rating.Ratings_Count} {(rating.Ratings_Count == 1 ? "rating" : "ratings")})";
+                }
+                else
+                {
+                    ratingLine = "⭐ Rating: No ratings yet";
+                }
+            }
+
             abstract_rtbx.Text =
-                $"📘 {paper.Title}\n\n{formattedAuthors}\n\n{departmentLine}\n{shelfLine}\n\n📅 {paper.Year}\n\n{paper.Abstract}";
+                $"📘 {paper.Title}\n\n{formattedAuthors}\n\n{departmentLine}\n{shelfLine}\n{ratingLine}\n\n📅 {paper.Year}\n\n{paper.Abstract}";
             abstract_rtbx.SelectionStart = 0;
             abstract_rtbx.ScrollToCaret();
         }
